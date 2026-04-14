@@ -1,0 +1,382 @@
+const db = require('../config/database');
+const { buildPagination, buildSearchQuery, buildActiveFilter, buildOrderBy } = require('../utils/pagination');
+
+class APLWipService {
+  /**
+   * Get all WIP records with pagination, search, and filters
+   */
+  async getAll(queryParams) {
+    try {
+      const { 
+        page = 1, limit = 10, search = '', isActive, status, 
+        dfsoCode, afsoCode, fpsCode, sortBy = 'created_at', sortOrder = 'DESC' 
+      } = queryParams;
+
+      // Build WHERE conditions
+      const conditions = [];
+      const params = [];
+      let paramIndex = 1;
+
+      // Add search condition
+      if (search) {
+        const searchColumns = [
+          'member_name', 'hof_name', 'rc_no::text', 'member_id::text', 
+          'uid', 'dist_name', 'fps_name'
+        ];
+        const searchQuery = buildSearchQuery(search, searchColumns);
+        if (searchQuery.condition) {
+          conditions.push(searchQuery.condition);
+          searchQuery.params.forEach(p => params.push(p));
+          paramIndex += searchQuery.params.length;
+        }
+      }
+
+      // Add status filter
+      if (status) {
+        conditions.push(`status = $${paramIndex}`);
+        params.push(status);
+        paramIndex++;
+      }
+
+      // Add DFSO filter
+      if (dfsoCode) {
+        conditions.push(`dfso_code = $${paramIndex}`);
+        params.push(dfsoCode);
+        paramIndex++;
+      }
+
+      // Add AFSO filter
+      if (afsoCode) {
+        conditions.push(`afso_code = $${paramIndex}`);
+        params.push(afsoCode);
+        paramIndex++;
+      }
+
+      // Add FPS filter
+      if (fpsCode) {
+        conditions.push(`fps_code = $${paramIndex}`);
+        params.push(fpsCode);
+        paramIndex++;
+      }
+
+      // Add active filter
+      if (isActive !== undefined) {
+        const activeFilter = buildActiveFilter(isActive);
+        if (activeFilter.condition) {
+          conditions.push(activeFilter.condition.replace('$1', `$${paramIndex}`));
+          params.push(...activeFilter.params);
+          paramIndex++;
+        }
+      }
+
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+      // Get total count
+      const countQuery = `SELECT COUNT(*) FROM t_apl_wip_data ${whereClause}`;
+      const countResult = await db.query(countQuery, params);
+      const totalCount = parseInt(countResult.rows[0].count);
+
+      // Build pagination
+      const pagination = buildPagination(page, limit, totalCount);
+
+      // Get data
+      const orderByClause = buildOrderBy(sortBy, sortOrder);
+      const dataQuery = `
+        SELECT * FROM t_apl_wip_data
+        ${whereClause}
+        ${orderByClause}
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      `;
+      
+      const dataParams = [...params, pagination.query.limit, pagination.query.offset];
+      const result = await db.query(dataQuery, dataParams);
+
+      return {
+        data: result.rows,
+        pagination: pagination.metadata
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Get WIP record by ID
+   */
+  async getById(id) {
+    try {
+      const query = 'SELECT * FROM t_apl_wip_data WHERE id = $1';
+      const result = await db.query(query, [id]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Bulk insert WIP records
+   */
+  async bulkInsert(wipDataArray, userId = 1) {
+    const client = await db.pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
+      const insertedRecords = [];
+      
+      for (const wipData of wipDataArray) {
+        const query = `
+          INSERT INTO t_apl_wip_data (
+            sno, dist_code, dist_name, dfso_code, dfso_name, afso_code, afso_name,
+            fps_code, fps_name, ct_card_desk, rc_no, hof_name, member_id, member_name,
+            gender, relation_name, member_dob, uid, demo_auth, ekyc,
+            total_disbursement_amount, is_disbursement_account, status,
+            created_by, is_active
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+            $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
+          )
+          RETURNING *
+        `;
+
+        const params = [
+          wipData.sno || 0,
+          wipData.dist_code,
+          wipData.dist_name,
+          wipData.dfso_code,
+          wipData.dfso_name,
+          wipData.afso_code,
+          wipData.afso_name,
+          wipData.fps_code,
+          wipData.fps_name,
+          wipData.ct_card_desk || null,
+          wipData.rc_no,
+          wipData.hof_name,
+          wipData.member_id,
+          wipData.member_name,
+          wipData.gender || null,
+          wipData.relation_name || null,
+          wipData.member_dob || null,
+          wipData.uid || null,
+          wipData.demo_auth || null,
+          wipData.ekyc || null,
+          wipData.total_disbursement_amount || 0,
+          wipData.is_disbursement_account || true,
+          wipData.status || 'PENDING',
+          userId,
+          true
+        ];
+
+        const result = await client.query(query, params);
+        insertedRecords.push(result.rows[0]);
+      }
+      
+      await client.query('COMMIT');
+      
+      return {
+        success: true,
+        count: insertedRecords.length,
+        data: insertedRecords
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Create new WIP record
+   */
+  async create(wipData, userId = 1) {
+    try {
+      const query = `
+        INSERT INTO t_apl_wip_data (
+          sno, dist_code, dist_name, dfso_code, dfso_name, afso_code, afso_name,
+          fps_code, fps_name, ct_card_desk, rc_no, hof_name, member_id, member_name,
+          gender, relation_name, member_dob, uid, demo_auth, ekyc,
+          total_disbursement_amount, is_disbursement_account, status,
+          created_by, is_active
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+          $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
+        )
+        RETURNING *
+      `;
+
+      const params = [
+        wipData.sno || 0,
+        wipData.dist_code,
+        wipData.dist_name,
+        wipData.dfso_code,
+        wipData.dfso_name,
+        wipData.afso_code,
+        wipData.afso_name,
+        wipData.fps_code,
+        wipData.fps_name,
+        wipData.ct_card_desk || null,
+        wipData.rc_no,
+        wipData.hof_name,
+        wipData.member_id,
+        wipData.member_name,
+        wipData.gender || null,
+        wipData.relation_name || null,
+        wipData.member_dob || null,
+        wipData.uid || null,
+        wipData.demo_auth || null,
+        wipData.ekyc || null,
+        wipData.total_disbursement_amount || 0,
+        wipData.is_disbursement_account || false,
+        wipData.status || 'PENDING',
+        userId,
+        true
+      ];
+
+      const result = await db.query(query, params);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Update WIP record
+   */
+  async update(id, wipData, userId = 1) {
+    try {
+      const query = `
+        UPDATE t_apl_wip_data 
+        SET 
+          sno = $1, dist_code = $2, dist_name = $3, dfso_code = $4, dfso_name = $5,
+          afso_code = $6, afso_name = $7, fps_code = $8, fps_name = $9,
+          ct_card_desk = $10, rc_no = $11, hof_name = $12, member_id = $13,
+          member_name = $14, gender = $15, relation_name = $16, member_dob = $17,
+          uid = $18, demo_auth = $19, ekyc = $20,
+          total_disbursement_amount = $21, is_disbursement_account = $22,
+          status = $23, modified_by = $24, modified_at = CURRENT_TIMESTAMP,
+          remarks = $25
+        WHERE id = $26
+        RETURNING *
+      `;
+
+      const params = [
+        wipData.sno,
+        wipData.dist_code,
+        wipData.dist_name,
+        wipData.dfso_code,
+        wipData.dfso_name,
+        wipData.afso_code,
+        wipData.afso_name,
+        wipData.fps_code,
+        wipData.fps_name,
+        wipData.ct_card_desk || null,
+        wipData.rc_no,
+        wipData.hof_name,
+        wipData.member_id,
+        wipData.member_name,
+        wipData.gender || null,
+        wipData.relation_name || null,
+        wipData.member_dob || null,
+        wipData.uid || null,
+        wipData.demo_auth || null,
+        wipData.ekyc || null,
+        wipData.total_disbursement_amount || 0,
+        wipData.is_disbursement_account || false,
+        wipData.status || 'PENDING',
+        userId,
+        wipData.remarks || null,
+        id
+      ];
+
+      const result = await db.query(query, params);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Approve WIP record
+   */
+  async approve(id, userId = 1, remarks = null) {
+    try {
+      const query = `
+        UPDATE t_apl_wip_data 
+        SET status = 'APPROVED',
+            approved_by = $1,
+            approved_at = CURRENT_TIMESTAMP,
+            modified_by = $1,
+            modified_at = CURRENT_TIMESTAMP,
+            remarks = $2
+        WHERE id = $3
+        RETURNING *
+      `;
+
+      const result = await db.query(query, [userId, remarks, id]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Reject WIP record
+   */
+  async reject(id, userId = 1, remarks = null) {
+    try {
+      const query = `
+        UPDATE t_apl_wip_data 
+        SET status = 'REJECTED',
+            approved_by = $1,
+            approved_at = CURRENT_TIMESTAMP,
+            modified_by = $1,
+            modified_at = CURRENT_TIMESTAMP,
+            remarks = $2
+        WHERE id = $3
+        RETURNING *
+      `;
+
+      const result = await db.query(query, [userId, remarks, id]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Delete WIP record
+   */
+  async delete(id) {
+    try {
+      const query = 'DELETE FROM t_apl_wip_data WHERE id = $1 RETURNING *';
+      const result = await db.query(query, [id]);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Get WIP statistics
+   */
+  async getStatistics() {
+    try {
+      const query = `
+        SELECT 
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE status = 'PENDING') as pending,
+          COUNT(*) FILTER (WHERE status = 'APPROVED') as approved,
+          COUNT(*) FILTER (WHERE status = 'REJECTED') as rejected,
+          COUNT(*) FILTER (WHERE status = 'CANCELLED') as cancelled
+        FROM t_apl_wip_data
+      `;
+      const result = await db.query(query);
+      return result.rows[0];
+    } catch (error) {
+      throw error;
+    }
+  }
+}
+
+module.exports = new APLWipService();

@@ -1,0 +1,129 @@
+Available sheets: ['m_afso', 'm_dfso', 'm_fps', 't_apl_data']
+
+================================================================================
+
+
+--- Sheet: m_afso ---
+Shape: (138, 10)
+Columns: ['id', 'dfso_code', 'afso_code', 'description_en', 'description_ll', 'is_active', 'created_at', 'created_by', 'updated_at', 'updated_by']
+
+First few rows:
+   id  dfso_code  afso_code  ... created_by updated_at updated_by
+0   1       1524    1524036  ...          1     [NULL]     [NULL]
+1   2       1515    1515220  ...          1     [NULL]     [NULL]
+2   3       1503    1503087  ...          1     [NULL]     [NULL]
+3   4       1513    1513311  ...          1     [NULL]     [NULL]
+4   5       1502    1502308  ...          1     [NULL]     [NULL]
+
+[5 rows x 10 columns]
+
+Data types:
+id                         int64
+dfso_code                  int64
+afso_code                  int64
+description_en               str
+description_ll               str
+is_active                    str
+created_at        datetime64[us]
+created_by                 int64
+updated_at                   str
+updated_by                   str
+dtype: object
+
+--------------------------------------------------------------------------------
+
+--- Sheet: m_dfso ---
+Shape: (14, 9)
+Columns: ['id', 'dfso_code', 'description_en', 'description_ll', 'is_active', 'created_at', 'created_by', 'updated_at', 'updated_by']
+
+First few rows:
+   id  dfso_code  ... updated_at updated_by
+0   1       1502  ...     [NULL]     [NULL]
+1   2       1510  ...     [NULL]     [NULL]
+2   3       1501  ...     [NULL]     [NULL]
+3   4       1511  ...     [NULL]     [NULL]
+4   5       1513  ...     [NULL]     [NULL]
+
+[5 rows x 9 columns]
+
+Data types:
+id                         int64
+dfso_code                  int64
+description_en               str
+description_ll               str
+is_active                    str
+created_at        datetime64[us]
+created_by                 int64
+updated_at                   str
+updated_by                   str
+dtype: object
+
+--------------------------------------------------------------------------------
+
+--- Sheet: m_fps ---
+Shape: (200, 10)
+Columns: ['id', 'fps_code', 'afso_code', 'description_en', 'description_ll', 'is_active', 'created_at', 'created_by', 'updated_at', 'updated_by']
+
+First few rows:
+   id      fps_code  afso_code  ... created_by updated_at updated_by
+0   1  150005800301    1500058  ...          1     [NULL]     [NULL]
+1   2  151209600088    1512096  ...          1     [NULL]     [NULL]
+2   3  152505900115    1525059  ...          1     [NULL]     [NULL]
+3   4  151032000344    1510320  ...          1     [NULL]     [NULL]
+4   5  151115600002    1511156  ...          1     [NULL]     [NULL]
+
+[5 rows x 10 columns]
+
+Data types:
+id                         int64
+fps_code                   int64
+afso_code                  int64
+description_en               str
+description_ll               str
+is_active                    str
+created_at        datetime64[us]
+created_by                 int64
+updated_at                   str
+updated_by                   str
+dtype: object
+
+--------------------------------------------------------------------------------
+
+--- Sheet: t_apl_data ---
+Shape: (200, 20)
+Columns: ['sno', 'dist_code', 'dist_name', 'dfso_code', 'dfso_name', 'afso_code', 'afso_name', 'fps_code', 'fps_name', 'ct_card_desk', 'rc_no', 'hof_name', 'member_id', 'member_name', 'gender', 'relation_name', 'meber_dob', 'uid', 'demo_auth', 'ekyc']
+
+First few rows:
+   sno  dist_code  ... demo_auth  ekyc
+0    1        501  ...       NaN   NaN
+1    2        501  ...       NaN   NaN
+2    3        501  ...       NaN   NaN
+3    4        501  ...       NaN   NaN
+4    5        501  ...       NaN   NaN
+
+[5 rows x 20 columns]
+
+Data types:
+sno                       int64
+dist_code                 int64
+dist_name                   str
+dfso_code                 int64
+dfso_name                   str
+afso_code                 int64
+afso_name                   str
+fps_code                  int64
+fps_name                    str
+ct_card_desk                str
+rc_no                     int64
+hof_name                    str
+member_id                 int64
+member_name                 str
+gender                      str
+relation_name               str
+meber_dob        datetime64[us]
+uid                         str
+demo_auth                   str
+ekyc                        str
+dtype: object
+
+--------------------------------------------------------------------------------

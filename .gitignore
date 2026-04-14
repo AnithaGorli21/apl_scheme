@@ -1,0 +1,314 @@
+# ========================================
+# APL Scheme Project - .gitignore
+# ========================================
+
+# ------------------------------
+# Node modules (All directories)
+# ------------------------------
+node_modules/
+**/node_modules/
+
+# ------------------------------
+# Environment variables
+# ------------------------------
+.env
+.env.*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ------------------------------
+# Dependency directories
+# ------------------------------
+jspm_packages/
+
+# ------------------------------
+# TypeScript cache
+# ------------------------------
+*.tsbuildinfo
+
+# ------------------------------
+# Optional npm cache directory
+# ------------------------------
+.npm
+
+# ------------------------------
+# Optional eslint cache
+# ------------------------------
+.eslintcache
+
+# ------------------------------
+# Microbundle cache
+# ------------------------------
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# ------------------------------
+# Optional REPL history
+# ------------------------------
+.node_repl_history
+
+# ------------------------------
+# Build output
+# ------------------------------
+dist/
+build/
+.next/
+out/
+*.tgz
+public/build/
+
+# ------------------------------
+# React / Create React App
+# ------------------------------
+# production build
+/build
+# misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ------------------------------
+# Testing coverage
+# ------------------------------
+coverage/
+*.lcov
+.nyc_output
+
+# ------------------------------
+# Logs
+# ------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ------------------------------
+# Runtime data
+# ------------------------------
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# ------------------------------
+# Database files
+# ------------------------------
+# SQLite
+*.sqlite
+*.sqlite3
+*.db
+
+# PostgreSQL dumps
+*.sql.gz
+*.dump
+pg_dump_*.sql
+
+# Database backups
+backups/
+*.bak
+*.backup
+
+# ------------------------------
+# Python files (for scripts)
+# ------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg
+*.egg-info/
+dist-python/
+.pytest_cache/
+
+# ------------------------------
+# Excel and Data files
+# ------------------------------
+# Uncomment if you don't want to track Excel files
+# *.xlsx
+# *.xls
+# *.csv
+# *.xlsm
+
+# Temporary Excel files
+~$*.xlsx
+~$*.xls
+~$*.xlsm
+
+# ------------------------------
+# OS generated files
+# ------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ------------------------------
+# IDE / Editor files
+# ------------------------------
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.vim
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+
+# ------------------------------
+# Temporary and cache files
+# ------------------------------
+tmp/
+temp/
+*.tmp
+.cache/
+.parcel-cache/
+.sass-cache/
+
+# ------------------------------
+# Webpack
+# ------------------------------
+.webpack/
+
+# ------------------------------
+# Serverless
+# ------------------------------
+.serverless/
+
+# ------------------------------
+# FuseBox cache
+# ------------------------------
+.fusebox/
+
+# ------------------------------
+# DynamoDB Local files
+# ------------------------------
+.dynamodb/
+
+# ------------------------------
+# TernJS port file
+# ------------------------------
+.tern-port
+
+# ------------------------------
+# Stores VSCode versions used for testing VSCode extensions
+# ------------------------------
+.vscode-test
+
+# ------------------------------
+# yarn v2
+# ------------------------------
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# ------------------------------
+# Optional: Lock files (Uncomment based on team preference)
+# ------------------------------
+# Uncomment if you want to ignore lock files
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ------------------------------
+# Documentation builds
+# ------------------------------
+docs/_build/
+site/
+
+# ------------------------------
+# Storybook
+# ------------------------------
+storybook-static/
+
+# ------------------------------
+# Debug
+# ------------------------------
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+debug.log
+
+# ------------------------------
+# Local development
+# ------------------------------
+.local/
+
+# ------------------------------
+# Miscellaneous
+# ------------------------------
+*.orig
+*.rej
+.*.swp
+.~lock.*
+
+# ------------------------------
+# Project specific
+# ------------------------------
+# Uncomment if needed
+# uploads/
+# downloads/
+# generated/
+
+# ------------------------------
+# Security files (never commit)
+# ------------------------------
+*.key
+*.pem
+*.p12
+*.cert
+*.crt
+secrets/
+credentials/
+
+# ------------------------------
+# CI/CD
+# ------------------------------
+.gitlab-ci-local/
+
+# ------------------------------
+# Docker
+# ------------------------------
+# Uncomment if using docker-compose.override.yml locally
+# docker-compose.override.yml
