@@ -1,0 +1,454 @@
+import React, { useState, useEffect } from 'react';
+import { apiService } from '../services/api';
+
+const BeneficiaryTable = ({ beneficiaries, searchParams }) => {
+  const [selectedFamilies, setSelectedFamilies] = useState(new Set());
+  const [selectedDisbursements, setSelectedDisbursements] = useState({});
+  const [validationErrors, setValidationErrors] = useState(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+
+  // Reset to page 1 when beneficiaries or rowsPerPage changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [beneficiaries, rowsPerPage]);
+
+  // Auto-select radio buttons based on business logic
+  useEffect(() => {
+    const autoSelections = {};
+    beneficiaries.forEach((family) => {
+      const hofMember = family.members.find(m => m.is_hof);
+      
+      // Auto-select if HOF has bank account
+      if (hofMember && hofMember.bank_account === 'Yes') {
+        autoSelections[family.rc_no] = {
+          memberId: hofMember.member_id,
+          locked: true // Disable other radio buttons
+        };
+      }
+    });
+    setSelectedDisbursements(autoSelections);
+  }, [beneficiaries]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(beneficiaries.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const paginatedFamilies = beneficiaries.slice(startIndex, endIndex);
+
+  // Handle page change
+  const handlePageChange = (page) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  // Handle rows per page change
+  const handleRowsPerPageChange = (e) => {
+    setRowsPerPage(parseInt(e.target.value));
+    setCurrentPage(1);
+  };
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxPagesToShow = 5;
+    
+    if (totalPages <= maxPagesToShow) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) pages.push(i);
+        pages.push('...');
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        pages.push('...');
+        pages.push(currentPage - 1);
+        pages.push(currentPage);
+        pages.push(currentPage + 1);
+        pages.push('...');
+        pages.push(totalPages);
+      }
+    }
+    
+    return pages;
+  };
+
+  // Calculate total benefit amount for a family
+  const calculateBenefitAmount = (members) => {
+    return members.length * 170;
+  };
+
+  // Handle family checkbox toggle
+  const handleFamilySelect = (rcNo) => {
+    const newSelected = new Set(selectedFamilies);
+    if (newSelected.has(rcNo)) {
+      newSelected.delete(rcNo);
+    } else {
+      newSelected.add(rcNo);
+    }
+    setSelectedFamilies(newSelected);
+    
+    // Clear validation error for this family
+    const newErrors = new Set(validationErrors);
+    newErrors.delete(rcNo);
+    setValidationErrors(newErrors);
+  };
+
+  // Handle radio button selection
+  const handleDisbursementSelect = (rcNo, memberId) => {
+    // Check if radio buttons are locked for this family
+    if (selectedDisbursements[rcNo]?.locked) {
+      return;
+    }
+
+    setSelectedDisbursements({
+      ...selectedDisbursements,
+      [rcNo]: { memberId, locked: false }
+    });
+
+    // Clear validation error for this family
+    const newErrors = new Set(validationErrors);
+    newErrors.delete(rcNo);
+    setValidationErrors(newErrors);
+  };
+
+  // Validate before save
+  const validateSelection = () => {
+    const errors = new Set();
+
+    // Check if at least one family is selected
+    if (selectedFamilies.size === 0) {
+      alert('Please select at least one family');
+      return false;
+    }
+
+    // Check if each selected family has a disbursement member selected
+    selectedFamilies.forEach((rcNo) => {
+      if (!selectedDisbursements[rcNo] || !selectedDisbursements[rcNo].memberId) {
+        errors.add(rcNo);
+      }
+    });
+
+    if (errors.size > 0) {
+      setValidationErrors(errors);
+      alert(`Please select a disbursement member for ${errors.size} family(families) highlighted in red`);
+      return false;
+    }
+
+    return true;
+  };
+
+  // Build payload and save
+  const handleSave = async () => {
+    if (!validateSelection()) {
+      return;
+    }
+
+    const payload = [];
+
+    selectedFamilies.forEach((rcNo) => {
+      const family = beneficiaries.find(f => f.rc_no === rcNo);
+      const selectedMemberId = selectedDisbursements[rcNo]?.memberId;
+      const selectedMember = family.members.find(m => m.member_id === selectedMemberId);
+
+      if (family && selectedMember) {
+        const totalBenefitAmount = calculateBenefitAmount(family.members);
+        
+        // Build payload matching exact API structure
+        payload.push({
+          sno: 0,
+          dist_code: 0, // Will be populated from actual data
+          dist_name: family.dist_name || "string",
+          dfso_code: 0, // Will be populated from actual data
+          dfso_name: family.dfso_name || "string",
+          afso_code: 0, // Will be populated from actual data
+          afso_name: family.afso_name || "string",
+          fps_code: 0, // Will be populated from actual data
+          fps_name: family.fps_name || "string",
+          ct_card_desk: family.rc_type || "string",
+          rc_no: parseInt(family.rc_no),
+          hof_name: family.hof_name || "string",
+          member_id: parseInt(selectedMember.member_id),
+          member_name: selectedMember.member_name || "string",
+          gender: selectedMember.gender || "string",
+          relation_name: selectedMember.relation || "string",
+          member_dob: selectedMember.dob || "string",
+          uid: selectedMember.aadhaar || "string",
+          demo_auth: selectedMember.demo_auth || "string",
+          ekyc: selectedMember.ekyc || "string",
+          total_disbursement_amount: totalBenefitAmount,
+          is_disbursement_account: true,
+          status: "SCRUTINY_PENDING"
+        });
+      }
+    });
+
+    console.log('Payload to be saved:', JSON.stringify(payload, null, 2));
+
+    try {
+      const response = await apiService.saveWIPData(payload);
+      console.log('Save response:', response);
+      
+      // Show success message
+      if (window.confirm(`✓ Success!\n\nData saved successfully!\n${response.meta?.count || payload.length} records inserted.\n\nClick OK to reset the form.`)) {
+        // Reset page
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Error saving data:', error);
+      
+      // Show failure message with close option
+      window.alert(`✗ Error!\n\nFailed to save data.\n${error.response?.data?.message || error.message}`);
+    }
+  };
+
+  if (beneficiaries.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow p-8 text-center">
+        <p className="text-gray-500 text-lg">No records found</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow">
+      <div className="p-6 border-b border-gray-200">
+        <h2 className="text-xl font-semibold text-gray-800">List of Beneficiaries</h2>
+        <p className="text-sm text-gray-600 mt-1">
+          Total Families: {beneficiaries.length} | 
+          Selected: {selectedFamilies.size}
+        </p>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Select</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">S.No.</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">District Name</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">DFSO Office</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">AFSO Office</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">FPS Name</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">RC Type</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">RC Number</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">HOF Name</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Member Name</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Member ID</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Gender</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Relationship</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Date of Birth</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Age</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Aadhaar No.</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Demo Auth</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">EKYC</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Bank Account</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Select for Disbursement</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Total Benefit Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {paginatedFamilies.map((family, familyIndex) => {
+              const isSelected = selectedFamilies.has(family.rc_no);
+              const hasValidationError = validationErrors.has(family.rc_no);
+              const totalBenefit = calculateBenefitAmount(family.members);
+              const isLocked = selectedDisbursements[family.rc_no]?.locked;
+
+              return family.members.map((member, memberIndex) => {
+                const isFirstMember = memberIndex === 0;
+                const rowBgColor = hasValidationError && isSelected 
+                  ? 'bg-red-50' 
+                  : isSelected 
+                  ? 'bg-blue-50' 
+                  : 'bg-white hover:bg-gray-50';
+
+                return (
+                  <tr key={`${family.rc_no}-${member.member_id}`} className={rowBgColor}>
+                    {/* Select Checkbox - Only on first row */}
+                    <td className={`px-4 py-3 ${!isFirstMember && 'border-l-4 border-gray-200'}`}>
+                      {isFirstMember && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleFamilySelect(family.rc_no)}
+                          className="w-5 h-5 text-blue-600 rounded cursor-pointer"
+                        />
+                      )}
+                    </td>
+
+                    {/* S.No. - Adjust for pagination */}
+                    <td className="px-4 py-3">
+                      {isFirstMember ? startIndex + familyIndex + 1 : ''}
+                    </td>
+
+                    {/* District Name - Merged for family */}
+                    <td className="px-4 py-3">
+                      {isFirstMember ? family.dist_name : ''}
+                    </td>
+
+                    {/* DFSO Office - Merged */}
+                    <td className="px-4 py-3">
+                      {isFirstMember ? family.dfso_name : ''}
+                    </td>
+
+                    {/* AFSO Office - Merged */}
+                    <td className="px-4 py-3">
+                      {isFirstMember ? family.afso_name : ''}
+                    </td>
+
+                    {/* FPS Name - Merged */}
+                    <td className="px-4 py-3">
+                      {isFirstMember ? family.fps_name : ''}
+                    </td>
+
+                    {/* RC Type - Merged */}
+                    <td className="px-4 py-3">
+                      {isFirstMember ? family.rc_type : ''}
+                    </td>
+
+                    {/* RC Number - Merged */}
+                    <td className="px-4 py-3 font-semibold">
+                      {isFirstMember ? family.rc_no : ''}
+                    </td>
+
+                    {/* HOF Name - Merged */}
+                    <td className="px-4 py-3">
+                      {isFirstMember ? family.hof_name : ''}
+                    </td>
+
+                    {/* Member-specific columns */}
+                    <td className="px-4 py-3">{member.member_name}</td>
+                    <td className="px-4 py-3">{member.member_id}</td>
+                    <td className="px-4 py-3">{member.gender}</td>
+                    <td className="px-4 py-3">{member.relation}</td>
+                    <td className="px-4 py-3">{member.dob}</td>
+                    <td className="px-4 py-3">{member.age}</td>
+                    <td className="px-4 py-3">{member.aadhaar}</td>
+                    <td className="px-4 py-3 text-center">{member.demo_auth}</td>
+                    <td className="px-4 py-3 text-center">{member.ekyc}</td>
+                    <td className="px-4 py-3 text-center">{member.bank_account}</td>
+
+                    {/* Radio Button for Disbursement */}
+                    <td className="px-4 py-3 text-center">
+                      <input
+                        type="radio"
+                        name={`disbursement-${family.rc_no}`}
+                        checked={selectedDisbursements[family.rc_no]?.memberId === member.member_id}
+                        onChange={() => handleDisbursementSelect(family.rc_no, member.member_id)}
+                        disabled={isLocked}
+                        className={`w-5 h-5 text-blue-600 ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      />
+                      {isLocked && selectedDisbursements[family.rc_no]?.memberId === member.member_id && (
+                        <span className="ml-2 text-xs text-green-600 font-semibold">(Auto)</span>
+                      )}
+                    </td>
+
+                    {/* Total Benefit Amount - Only on first row */}
+                    <td className="px-4 py-3 font-bold text-green-600">
+                      {isFirstMember ? `₹${totalBenefit}` : ''}
+                    </td>
+                  </tr>
+                );
+              });
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination Controls */}
+      <div className="p-4 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+        {/* Left: Rows per page */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-600">Rows per page:</span>
+          <select
+            value={rowsPerPage}
+            onChange={handleRowsPerPageChange}
+            className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+          >
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={100}>100</option>
+          </select>
+          <span className="text-sm text-gray-600">
+            Showing {startIndex + 1}-{Math.min(endIndex, beneficiaries.length)} of {beneficiaries.length}
+          </span>
+        </div>
+
+        {/* Right: Page navigation */}
+        <div className="flex items-center gap-2">
+          {/* Previous Button */}
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
+              currentPage === 1
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Previous
+          </button>
+
+          {/* Page Numbers */}
+          {getPageNumbers().map((page, index) => (
+            <button
+              key={index}
+              onClick={() => typeof page === 'number' && handlePageChange(page)}
+              disabled={page === '...'}
+              className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
+                page === currentPage
+                  ? 'bg-blue-600 text-white'
+                  : page === '...'
+                  ? 'bg-white text-gray-400 cursor-default'
+                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {page}
+            </button>
+          ))}
+
+          {/* Next Button */}
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
+              currentPage === totalPages
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+
+      {/* Save Button */}
+      <div className="p-6 border-t border-gray-200 flex justify-between items-center">
+        <div className="text-sm text-gray-600">
+          {validationErrors.size > 0 && (
+            <span className="text-red-600 font-semibold">
+              ⚠️ {validationErrors.size} family(families) missing disbursement selection
+            </span>
+          )}
+        </div>
+        <button
+          onClick={handleSave}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3 rounded-lg transition shadow-md hover:shadow-lg"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default BeneficiaryTable;
