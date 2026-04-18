@@ -324,11 +324,12 @@ const SchemeSearch = () => {
             <button
               onClick={handleProceed}
               disabled={!isFormValid() || loading}
-              className={`px-8 py-3 rounded-lg font-semibold text-white transition ${
+              className={`px-8 py-3 rounded-lg font-semibold text-white transition shadow-md hover:shadow-lg ${
                 !isFormValid() || loading
                   ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-green-600 hover:bg-green-700 shadow-md hover:shadow-lg"
+                  : "hover:opacity-90"
               }`}
+              style={!isFormValid() && !loading ? {} : { backgroundColor: '#002B70' }}
             >
               {loading ? "Loading..." : "Proceed"}
             </button>
@@ -348,25 +349,25 @@ const SchemeSearch = () => {
               onTabChange={setActiveTab}
             />
 
-            {/* Tab Content */}
+            {/* Tab Content - Both tabs rendered but hidden to preserve state */}
             <div className="mt-6">
-              {activeTab === 'new' && (
+              <div style={{ display: activeTab === 'new' ? 'block' : 'none' }}>
                 <BeneficiaryTable
                   beneficiaries={newScrutinyData}
                   searchParams={formData}
                   onSelectionChange={handleSelectionChange}
                   tabType="new"
                 />
-              )}
+              </div>
               
-              {activeTab === 'old' && (
+              <div style={{ display: activeTab === 'old' ? 'block' : 'none' }}>
                 <BeneficiaryTable
                   beneficiaries={oldScrutinyData}
                   searchParams={formData}
                   onSelectionChange={handleSelectionChange}
                   tabType="old"
                 />
-              )}
+              </div>
             </div>
 
             {/* Final Submit Button */}
@@ -379,7 +380,8 @@ const SchemeSearch = () => {
               </div>
               <button
                 onClick={handleFinalSubmit}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3 rounded-lg transition shadow-md hover:shadow-lg"
+                className="text-white font-semibold px-8 py-3 rounded-lg transition shadow-md hover:shadow-lg hover:opacity-90"
+                style={{ backgroundColor: '#002B70' }}
               >
                 Final Submit
               </button>

@@ -1,0 +1,18 @@
+Code :apl_scheme_web_ui/src/components/BeneficiaryTable.js
+
+Issue 1: when Select All selected and Radio button not checked for that family, still allowing the user to submit. 
+
+Resolution: Each Checked family, one member has to be selected for (Select Account for Disbursement)
+Highlight family row , when checked but not selected radio button
+
+
+Issue 2: 
+Use Table Header background color, Proceed and Submit Button, pagination selected color - #002B70
+Use Table Header Font color - white (Use colors which are according to backgraound color)
+
+Issue 3: 
+When Selecting All in First Tab (New scrutiny) for 2 pages and switching to other tab , selecting is getting resetted.  Please remember the selection.
+
+Issue 4:
+Give Clear selection button to reset all pages familities selection in one go. 
+

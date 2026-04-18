@@ -111,29 +111,38 @@ const BeneficiaryTable = ({
   // Handle Select All for current page
   const handleSelectAll = () => {
     const newSelected = new Set(selectedFamilies);
+    const newErrors = new Set(validationErrors);
     
     if (selectAllChecked) {
       // Deselect all families on current page
       paginatedFamilies.forEach(family => {
         newSelected.delete(family.rc_no);
+        newErrors.delete(family.rc_no);
       });
       setSelectAllChecked(false);
     } else {
       // Select all families on current page
       paginatedFamilies.forEach(family => {
         newSelected.add(family.rc_no);
+        // Add validation error if no disbursement selected
+        if (!selectedDisbursements[family.rc_no] || !selectedDisbursements[family.rc_no].memberId) {
+          newErrors.add(family.rc_no);
+        } else {
+          newErrors.delete(family.rc_no);
+        }
       });
       setSelectAllChecked(true);
     }
     
     setSelectedFamilies(newSelected);
-    
-    // Clear validation errors for selected families
-    const newErrors = new Set(validationErrors);
-    paginatedFamilies.forEach(family => {
-      newErrors.delete(family.rc_no);
-    });
     setValidationErrors(newErrors);
+  };
+
+  // Clear all selections
+  const handleClearAll = () => {
+    setSelectedFamilies(new Set());
+    setValidationErrors(new Set());
+    setSelectAllChecked(false);
   };
 
   // Update Select All checkbox state when page changes or selections change
@@ -273,46 +282,56 @@ const BeneficiaryTable = ({
 
   return (
     <div className="bg-white rounded-lg shadow">
-      <div className="p-6 border-b border-gray-200">
-        <h2 className="text-xl font-semibold text-gray-800">List of Beneficiaries</h2>
-        <p className="text-sm text-gray-600 mt-1">
-          Total Families: {beneficiaries.length} | 
-          Selected: {selectedFamilies.size}
-        </p>
+      <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800">List of Beneficiaries</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Total Families: {beneficiaries.length} | 
+            Selected: {selectedFamilies.size}
+          </p>
+        </div>
+        {selectedFamilies.size > 0 && (
+          <button
+            onClick={handleClearAll}
+            className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition shadow-md hover:shadow-lg text-sm"
+          >
+            Clear All Selections
+          </button>
+        )}
       </div>
 
       {/* Fixed header with scrollable body */}
       <div className="overflow-x-auto" style={{ maxHeight: '600px' }}>
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+          <thead className="border-b border-gray-200 sticky top-0 z-10" style={{ backgroundColor: '#002B70' }}>
             <tr>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">S.No.</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">District Name</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">DFSO Office</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">AFSO Office</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">FPS Name</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">RC Type</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">RC Number</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">HOF Name</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Member Name</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Member ID</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Gender</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Relationship with HOF</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Date of Birth</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Age</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Aadhaar No.</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Demographic Authentication Completed</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">EKYC Status</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Aadhaar Linked Bank account available?</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Select Account for Disbursement</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Total Benefit Amount</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">
+              <th className="px-4 py-3 text-left font-semibold text-white">S.No.</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">District Name</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">DFSO Office</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">AFSO Office</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">FPS Name</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">RC Type</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">RC Number</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">HOF Name</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Member Name</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Member ID</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Gender</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Relationship with HOF</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Date of Birth</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Age</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Aadhaar No.</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Demographic Authentication Completed</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">EKYC Status</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Aadhaar Linked Bank account available?</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Select Account for Disbursement</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Total Benefit Amount</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     checked={selectAllChecked}
                     onChange={handleSelectAll}
-                    className="w-5 h-5 text-blue-600 rounded cursor-pointer"
+                    className="w-5 h-5 rounded cursor-pointer"
                   />
                   <span>Select</span>
                 </div>
@@ -477,11 +496,12 @@ const BeneficiaryTable = ({
               disabled={page === '...'}
               className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
                 page === currentPage
-                  ? 'bg-blue-600 text-white'
+                  ? 'text-white'
                   : page === '...'
                   ? 'bg-white text-gray-400 cursor-default'
                   : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
               }`}
+              style={page === currentPage ? { backgroundColor: '#002B70' } : {}}
             >
               {page}
             </button>
