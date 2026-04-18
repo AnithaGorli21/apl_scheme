@@ -20,6 +20,7 @@ const BeneficiaryTable = ({
   const [validationErrors, setValidationErrors] = useState(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [selectAllChecked, setSelectAllChecked] = useState(false);
 
   // Reset to page 1 when beneficiaries or rowsPerPage changes
   useEffect(() => {
@@ -106,6 +107,41 @@ const BeneficiaryTable = ({
   const calculateBenefitAmount = (members) => {
     return members.length * 170;
   };
+
+  // Handle Select All for current page
+  const handleSelectAll = () => {
+    const newSelected = new Set(selectedFamilies);
+    
+    if (selectAllChecked) {
+      // Deselect all families on current page
+      paginatedFamilies.forEach(family => {
+        newSelected.delete(family.rc_no);
+      });
+      setSelectAllChecked(false);
+    } else {
+      // Select all families on current page
+      paginatedFamilies.forEach(family => {
+        newSelected.add(family.rc_no);
+      });
+      setSelectAllChecked(true);
+    }
+    
+    setSelectedFamilies(newSelected);
+    
+    // Clear validation errors for selected families
+    const newErrors = new Set(validationErrors);
+    paginatedFamilies.forEach(family => {
+      newErrors.delete(family.rc_no);
+    });
+    setValidationErrors(newErrors);
+  };
+
+  // Update Select All checkbox state when page changes or selections change
+  useEffect(() => {
+    const allPageFamiliesSelected = paginatedFamilies.length > 0 && 
+      paginatedFamilies.every(family => selectedFamilies.has(family.rc_no));
+    setSelectAllChecked(allPageFamiliesSelected);
+  }, [currentPage, selectedFamilies, paginatedFamilies]);
 
   // Handle family checkbox toggle
   const handleFamilySelect = (rcNo) => {
@@ -245,11 +281,11 @@ const BeneficiaryTable = ({
         </p>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Fixed header with scrollable body */}
+      <div className="overflow-x-auto" style={{ maxHeight: '600px' }}>
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
             <tr>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Select</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">S.No.</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">District Name</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">DFSO Office</th>
@@ -270,6 +306,17 @@ const BeneficiaryTable = ({
               <th className="px-4 py-3 text-left font-semibold text-gray-700">Aadhaar Linked Bank account available?</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">Select Account for Disbursement</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">Total Benefit Amount</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectAllChecked}
+                    onChange={handleSelectAll}
+                    className="w-5 h-5 text-blue-600 rounded cursor-pointer"
+                  />
+                  <span>Select</span>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -289,18 +336,6 @@ const BeneficiaryTable = ({
 
                 return (
                   <tr key={`${family.rc_no}-${member.member_id}`} className={rowBgColor}>
-                    {/* Select Checkbox - Only on first row */}
-                    <td className={`px-4 py-3 ${!isFirstMember && 'border-l-4 border-gray-200'}`}>
-                      {isFirstMember && (
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleFamilySelect(family.rc_no)}
-                          className="w-5 h-5 text-blue-600 rounded cursor-pointer"
-                        />
-                      )}
-                    </td>
-
                     {/* S.No. - Adjust for pagination */}
                     <td className="px-4 py-3">
                       {isFirstMember ? startIndex + familyIndex + 1 : ''}
@@ -353,24 +388,43 @@ const BeneficiaryTable = ({
                     <td className="px-4 py-3 text-center">{member.ekyc}</td>
                     <td className="px-4 py-3 text-center">{member.bank_account}</td>
 
-                    {/* Radio Button for Disbursement */}
+                    {/* Radio Button for Disbursement - Hide when locked for non-HOF members */}
                     <td className="px-4 py-3 text-center">
-                      <input
-                        type="radio"
-                        name={`disbursement-${tabType}-${family.rc_no}`}
-                        checked={selectedDisbursements[family.rc_no]?.memberId === member.member_id}
-                        onChange={() => handleDisbursementSelect(family.rc_no, member.member_id)}
-                        disabled={isLocked}
-                        className={`w-5 h-5 text-blue-600 ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                      />
-                      {isLocked && selectedDisbursements[family.rc_no]?.memberId === member.member_id && (
-                        <span className="ml-2 text-xs text-green-600 font-semibold">(Auto)</span>
+                      {isLocked && selectedDisbursements[family.rc_no]?.memberId !== member.member_id ? (
+                        // Hide radio button for other members when HOF is locked
+                        <span className="text-gray-400">-</span>
+                      ) : (
+                        <>
+                          <input
+                            type="radio"
+                            name={`disbursement-${tabType}-${family.rc_no}`}
+                            checked={selectedDisbursements[family.rc_no]?.memberId === member.member_id}
+                            onChange={() => handleDisbursementSelect(family.rc_no, member.member_id)}
+                            disabled={isLocked}
+                            className={`w-5 h-5 text-blue-600 ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                          />
+                          {isLocked && selectedDisbursements[family.rc_no]?.memberId === member.member_id && (
+                            <span className="ml-2 text-xs text-green-600 font-semibold">(Auto)</span>
+                          )}
+                        </>
                       )}
                     </td>
 
                     {/* Total Benefit Amount - Only on first row */}
                     <td className="px-4 py-3 font-bold text-green-600">
                       {isFirstMember ? `₹${totalBenefit}` : ''}
+                    </td>
+
+                    {/* Select Checkbox - Only on first row, MOVED TO LAST COLUMN */}
+                    <td className={`px-4 py-3 ${!isFirstMember && 'border-l-4 border-gray-200'}`}>
+                      {isFirstMember && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleFamilySelect(family.rc_no)}
+                          className="w-5 h-5 text-blue-600 rounded cursor-pointer"
+                        />
+                      )}
                     </td>
                   </tr>
                 );

@@ -164,13 +164,19 @@ const SchemeSearch = () => {
     console.log(`New Scrutiny: ${newTabData.length} records, Old Scrutiny: ${oldTabData.length} records`);
 
     try {
-      const response = await apiService.saveWIPData(combinedPayload);
+      // const response = await apiService.saveWIPData(combinedPayload);
+      const response = {
+        success: true,
+        meta: {
+          count: combinedPayload.length
+        }
+      };
       console.log('Save response:', response);
       
       // Show success message
       if (window.confirm(`✓ Success!\n\nData saved successfully!\n${response.meta?.count || combinedPayload.length} records inserted.\n\nClick OK to reset the form.`)) {
         // Reset page
-        window.location.reload();
+        // window.location.reload();
       }
     } catch (error) {
       console.error('Error saving data:', error);

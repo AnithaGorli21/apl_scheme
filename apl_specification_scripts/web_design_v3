@@ -1,0 +1,12 @@
+ Code - apl_scheme_web_ui
+
+ Make below changes for ASFO 
+ 1. Add Select All option  in BeneficiaryTable.js to allow AFSO to easily select all families(Select all should be per page not all families in the system) and perform bulk actions like export or delete. This will enhance usability and efficiency for AFSO users when managing multiple families at once.
+ 2. Move select checkbox of each row to last column in BeneficiaryTable.js
+ 3. If is_hof , we are freezing radio button right, in this case other family member radio buttons should be hidden instead of disabling.
+ 4. As table columns are huge, scrolling is dificult for users, so we can make table header fixed and rest of the table scrollable. This will improve user experience when navigating through large datasets in the BeneficiaryTable.js.
+
+
+
+
+
