@@ -5,6 +5,9 @@ import BeneficiaryTableAFSO from '../components/BeneficiaryTableAFSO';
 import BeneficiaryTableDFSO from '../components/BeneficiaryTableDFSO';
 import TabContainer from '../components/TabContainer';
 import BeneficiaryTable from '../components/BeneficiaryTable';
+import LoadingModal from '../components/modals/LoadingModal';
+import SuccessModal from '../components/modals/SuccessModal';
+import ErrorModal from '../components/modals/ErrorModal';
 
 const SchemeSearch = () => {
   const { user, logout } = useAuth();
@@ -39,6 +42,12 @@ const SchemeSearch = () => {
     new: [],
     old: []
   });
+
+  // Modal states
+  const [showLoadingModal, setShowLoadingModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState({ title: '', message: '' });
 
   useEffect(() => {
     loadDropdownData();
@@ -153,7 +162,11 @@ const SchemeSearch = () => {
 
     // Validate that at least one tab has selections
     if (newTabData.length === 0 && oldTabData.length === 0) {
-      alert('Please select at least one family from either tab before submitting');
+      setModalMessage({
+        title: 'Validation Error',
+        message: 'Please select at least one family from either tab before submitting.'
+      });
+      setShowErrorModal(true);
       return;
     }
 
@@ -163,27 +176,47 @@ const SchemeSearch = () => {
     console.log('Final Submit - Combined Payload:', JSON.stringify(combinedPayload, null, 2));
     console.log(`New Scrutiny: ${newTabData.length} records, Old Scrutiny: ${oldTabData.length} records`);
 
+    // Show loading modal
+    setShowLoadingModal(true);
+
     try {
-      // const response = await apiService.saveWIPData(combinedPayload);
-      const response = {
-        success: true,
-        meta: {
-          count: combinedPayload.length
-        }
-      };
+      const response = await apiService.saveWIPData(combinedPayload);
       console.log('Save response:', response);
       
-      // Show success message
-      if (window.confirm(`✓ Success!\n\nData saved successfully!\n${response.meta?.count || combinedPayload.length} records inserted.\n\nClick OK to reset the form.`)) {
-        // Reset page
-        // window.location.reload();
-      }
+      // Hide loading modal
+      setShowLoadingModal(false);
+      
+      // Show success modal
+      setModalMessage({
+        title: 'Success!',
+        message: `Data saved successfully! ${response.meta?.count || combinedPayload.length} records inserted.`
+      });
+      setShowSuccessModal(true);
     } catch (error) {
       console.error('Error saving data:', error);
       
-      // Show failure message
-      window.alert(`✗ Error!\n\nFailed to save data.\n${error.response?.data?.message || error.message}`);
+      // Hide loading modal
+      setShowLoadingModal(false);
+      
+      // Show error modal
+      setModalMessage({
+        title: 'Operation Failed',
+        message: `Failed to save data. ${error.response?.data?.message || error.message}`
+      });
+      setShowErrorModal(true);
     }
+  };
+
+  // Handle success modal close
+  const handleSuccessClose = () => {
+    setShowSuccessModal(false);
+    // Optionally reload the page
+    window.location.reload();
+  };
+
+  // Handle error modal close
+  const handleErrorClose = () => {
+    setShowErrorModal(false);
   };
 
   return (
@@ -397,6 +430,29 @@ const SchemeSearch = () => {
           />
         )}
       </main>
+
+      {/* Modal Components */}
+      <LoadingModal
+        isOpen={showLoadingModal}
+        title="Saving Data..."
+        subtitle="Please wait while we process your submission."
+      />
+
+      <SuccessModal
+        isOpen={showSuccessModal}
+        title={modalMessage.title}
+        message={modalMessage.message}
+        onClose={handleSuccessClose}
+        buttonText="OK"
+      />
+
+      <ErrorModal
+        isOpen={showErrorModal}
+        title={modalMessage.title}
+        message={modalMessage.message}
+        onClose={handleErrorClose}
+        buttonText="Close"
+      />
     </div>
   );
 };
