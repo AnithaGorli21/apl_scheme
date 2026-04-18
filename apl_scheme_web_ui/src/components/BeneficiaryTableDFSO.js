@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
+import LoadingModal from './modals/LoadingModal';
+import SuccessModal from './modals/SuccessModal';
+import ErrorModal from './modals/ErrorModal';
+import RemarksModal from './modals/RemarksModal';
 
 const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
   const [selectedFamilies, setSelectedFamilies] = useState(new Set());
@@ -7,7 +11,14 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
   const [validationErrors, setValidationErrors] = useState(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [selectAllChecked, setSelectAllChecked] = useState(false);
 
+  // Modal states
+  const [showLoadingModal, setShowLoadingModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [showRemarksModal, setShowRemarksModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState({ title: '', message: '' });
 
   // Reset to page 1 when beneficiaries or rowsPerPage changes
   useEffect(() => {
@@ -24,7 +35,7 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
       if (hofMember && hofMember.bank_account === 'Yes') {
         autoSelections[family.rc_no] = {
           memberId: hofMember.member_id,
-          locked: true // Disable other radio buttons
+          locked: true
         };
       }
     });
@@ -87,6 +98,52 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
     return members.length * 170;
   };
 
+  // Handle Select All for current page only
+  const handleSelectAll = () => {
+    const newSelected = new Set(selectedFamilies);
+    
+    if (selectAllChecked) {
+      // Deselect all families on current page
+      paginatedFamilies.forEach(family => {
+        newSelected.delete(family.rc_no);
+      });
+      setSelectAllChecked(false);
+    } else {
+      // Select all families on current page
+      paginatedFamilies.forEach(family => {
+        newSelected.add(family.rc_no);
+      });
+      setSelectAllChecked(true);
+    }
+    
+    setSelectedFamilies(newSelected);
+    setValidationErrors(new Set());
+  };
+
+  // Select ALL families across ALL pages
+  const handleSelectAllFamilies = () => {
+    const allFamilies = new Set();
+    beneficiaries.forEach(family => {
+      allFamilies.add(family.rc_no);
+    });
+    setSelectedFamilies(allFamilies);
+    setValidationErrors(new Set());
+  };
+
+  // Clear all selections and reset checkboxes
+  const handleClearAll = () => {
+    setSelectedFamilies(new Set());
+    setValidationErrors(new Set());
+    setSelectAllChecked(false);
+  };
+
+  // Update Select All checkbox state
+  useEffect(() => {
+    const allPageFamiliesSelected = paginatedFamilies.length > 0 && 
+      paginatedFamilies.every(family => selectedFamilies.has(family.rc_no));
+    setSelectAllChecked(allPageFamiliesSelected);
+  }, [currentPage, selectedFamilies, paginatedFamilies]);
+
   // Handle family checkbox toggle
   const handleFamilySelect = (rcNo) => {
     const newSelected = new Set(selectedFamilies);
@@ -97,155 +154,117 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
     }
     setSelectedFamilies(newSelected);
     
-    // Clear validation error for this family
     const newErrors = new Set(validationErrors);
     newErrors.delete(rcNo);
     setValidationErrors(newErrors);
   };
 
-  // Handle radio button selection with unselect capability
-  const handleDisbursementSelect = (rcNo, memberId) => {
-    // Check if radio buttons are locked for this family
-    if (selectedDisbursements[rcNo]?.locked) {
-      return;
-    }
-
-    // Check if the same radio button is clicked again - unselect it
-    if (selectedDisbursements[rcNo]?.memberId === memberId) {
-      const newSelections = { ...selectedDisbursements };
-      delete newSelections[rcNo];
-      setSelectedDisbursements(newSelections);
-    } else {
-      // Select the new radio button
-      setSelectedDisbursements({
-        ...selectedDisbursements,
-        [rcNo]: { memberId, locked: false }
-      });
-    }
-
-    // Clear validation error for this family
-    const newErrors = new Set(validationErrors);
-    newErrors.delete(rcNo);
-    setValidationErrors(newErrors);
-  };
-
-  // Validate before save
-  const validateSelection = () => {
-    const errors = new Set();
-
-    // Check if at least one family is selected
+  // Handle Approve action
+  const handleApprove = async () => {
     if (selectedFamilies.size === 0) {
-      alert('Please select at least one family');
-      return false;
-    }
-
-    // Check if each selected family has a disbursement member selected
-    selectedFamilies.forEach((rcNo) => {
-      if (!selectedDisbursements[rcNo] || !selectedDisbursements[rcNo].memberId) {
-        errors.add(rcNo);
-      }
-    });
-
-    if (errors.size > 0) {
-      setValidationErrors(errors);
-      alert(`Please select a disbursement member for ${errors.size} family(families) highlighted in red`);
-      return false;
-    }
-
-    return true;
-  };
-
-  // Build payload and save/update based on role
-  const handleSave = async () => {
-    if (!validateSelection()) {
+      setModalMessage({
+        title: 'Validation Error',
+        message: 'Please select at least one family before approving.'
+      });
+      setShowErrorModal(true);
       return;
     }
 
-    // DFSO: Update status to APPROVED
-    if (userRole === 'DFSO') {
-      const rcNumbers = Array.from(selectedFamilies);
-      const payload = {
-        rc_numbers: rcNumbers,
-        status: 'APPROVED'
-      };
+    setShowLoadingModal(true);
+    
+    const rcNumbers = Array.from(selectedFamilies);
+    const payload = {
+      rc_numbers: rcNumbers,
+      status: 'APPROVED'
+    };
 
-      console.log('DFSO - Payload to update status:', JSON.stringify(payload, null, 2));
-
-      try {
-        const response = await apiService.updateWIPDataStatus(payload);
-        console.log('Update response:', response);
-        
-        // Show success message
-        if (window.confirm(`✓ Success!\n\nData updated successfully!\n${rcNumbers.length} records approved.\n\nClick OK to reset the form.`)) {
-          // Reset page
-          window.location.reload();
-        }
-      } catch (error) {
-        console.error('Error updating data:', error);
-        
-        // Show failure message
-        window.alert(`✗ Error!\n\nFailed to update data.\n${error.response?.data?.message || error.message}`);
-      }
-      return;
-    }
-
-    // AFSO: Save to WIP (Insert)
-    const payload = [];
-
-    selectedFamilies.forEach((rcNo) => {
-      const family = beneficiaries.find(f => f.rc_no === rcNo);
-      const selectedMemberId = selectedDisbursements[rcNo]?.memberId;
-      const selectedMember = family.members.find(m => m.member_id === selectedMemberId);
-
-      if (family && selectedMember) {
-        const totalBenefitAmount = calculateBenefitAmount(family.members);
-        
-        // Build payload matching exact API structure
-        payload.push({
-          sno: 0,
-          dist_code: family.dist_code,
-          dist_name: family.dist_name || "string",
-          dfso_code: family.dfso_code,
-          dfso_name: family.dfso_name || "string",
-          afso_code: family.afso_code,
-          afso_name: family.afso_name || "string",
-          fps_code: family.fps_code,
-          fps_name: family.fps_name || "string",
-          ct_card_desk: family.rc_type || "string",
-          rc_no: parseInt(family.rc_no),
-          hof_name: family.hof_name || "string",
-          member_id: parseInt(selectedMember.member_id),
-          member_name: selectedMember.member_name || "string",
-          gender: selectedMember.gender || "string",
-          relation_name: selectedMember.relation || "string",
-          member_dob: selectedMember.dob || "string",
-          uid: selectedMember.aadhaar || "string",
-          demo_auth: selectedMember.demo_auth || "string",
-          ekyc: selectedMember.ekyc || "string",
-          total_disbursement_amount: totalBenefitAmount,
-          is_disbursement_account: true,
-          status: "SCRUTINY_PENDING"
-        });
-      }
-    });
-
-    console.log('AFSO - Payload to be saved:', JSON.stringify(payload, null, 2));
+    console.log('DFSO - Approve Payload:', JSON.stringify(payload, null, 2));
 
     try {
-      const response = await apiService.saveWIPData(payload);
-      console.log('Save response:', response);
+      const response = await apiService.updateWIPDataStatus(payload);
+      console.log('Approve response:', response);
       
-      // Show success message
-      if (window.confirm(`✓ Success!\n\nData saved successfully!\n${response.meta?.count || payload.length} records inserted.\n\nClick OK to reset the form.`)) {
-        // Reset page
-        window.location.reload();
-      }
+      setShowLoadingModal(false);
+      setModalMessage({
+        title: 'Records Approved',
+        message: `${rcNumbers.length} record(s) successfully approved.`
+      });
+      setShowSuccessModal(true);
     } catch (error) {
-      console.error('Error saving data:', error);
+      console.error('Error approving data:', error);
       
-      // Show failure message
-      window.alert(`✗ Error!\n\nFailed to save data.\n${error.response?.data?.message || error.message}`);
+      setShowLoadingModal(false);
+      setModalMessage({
+        title: 'Operation Failed',
+        message: `Failed to approve records. ${error.response?.data?.message || error.message}`
+      });
+      setShowErrorModal(true);
     }
+  };
+
+  // Handle Reject action
+  const handleReject = () => {
+    if (selectedFamilies.size === 0) {
+      setModalMessage({
+        title: 'Validation Error',
+        message: 'Please select at least one family before rejecting.'
+      });
+      setShowErrorModal(true);
+      return;
+    }
+    setShowRemarksModal(true);
+  };
+
+  // Handle remarks submission
+  const handleRemarksSubmit = async (remarks) => {
+    setShowRemarksModal(false);
+    setShowLoadingModal(true);
+    
+    const rcNumbers = Array.from(selectedFamilies);
+    const payload = {
+      rc_numbers: rcNumbers,
+      status: 'REJECTED',
+      remarks: remarks
+    };
+
+    console.log('DFSO - Reject Payload:', JSON.stringify(payload, null, 2));
+
+    try {
+      const response = await apiService.updateWIPDataStatus(payload);
+      console.log('Reject response:', response);
+      
+      setShowLoadingModal(false);
+      setModalMessage({
+        title: 'Records Rejected',
+        message: `${rcNumbers.length} record(s) successfully rejected.`
+      });
+      setShowSuccessModal(true);
+    } catch (error) {
+      console.error('Error rejecting data:', error);
+      
+      setShowLoadingModal(false);
+      setModalMessage({
+        title: 'Operation Failed',
+        message: `Failed to reject records. ${error.response?.data?.message || error.message}`
+      });
+      setShowErrorModal(true);
+    }
+  };
+
+  // Handle remarks modal cancel
+  const handleRemarksCancel = () => {
+    setShowRemarksModal(false);
+  };
+
+  // Handle success modal close
+  const handleSuccessClose = () => {
+    setShowSuccessModal(false);
+    window.location.reload();
+  };
+
+  // Handle error modal close
+  const handleErrorClose = () => {
+    setShowErrorModal(false);
   };
 
   if (beneficiaries.length === 0) {
@@ -258,39 +277,69 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
 
   return (
     <div className="bg-white rounded-lg shadow">
-      <div className="p-6 border-b border-gray-200">
-        <h2 className="text-xl font-semibold text-gray-800">List of Beneficiaries</h2>
-        <p className="text-sm text-gray-600 mt-1">
-          Total Families: {beneficiaries.length} | 
-          Selected: {selectedFamilies.size}
-        </p>
+      {/* Header Section with Select All Families and Clear All Buttons */}
+      <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800">List of Beneficiaries</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Total Families: {beneficiaries.length} | Selected: {selectedFamilies.size}
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={handleSelectAllFamilies}
+            className="text-white font-semibold px-4 py-2 rounded-lg transition shadow-md hover:shadow-lg hover:opacity-90 text-sm"
+            style={{ backgroundColor: '#002B70' }}
+          >
+            Select All Families
+          </button>
+          {selectedFamilies.size > 0 && (
+            <button
+              onClick={handleClearAll}
+              className="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition shadow-md hover:shadow-lg text-sm"
+            >
+              Clear All Selections
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Fixed header with scrollable body */}
+      <div className="overflow-x-auto" style={{ maxHeight: '600px' }}>
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
+          <thead className="border-b border-gray-200 sticky top-0 z-10" style={{ backgroundColor: '#002B70' }}>
             <tr>
-             {/*  <th className="px-4 py-3 text-left font-semibold text-gray-700">Select</th> */}
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">S.No.</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">District Name</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">DFSO Office</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">AFSO Office</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">FPS Name</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">RC Type</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">RC Number</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">HOF Name</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Member Name</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Member ID</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Gender</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Relationship</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Date of Birth</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Age</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Aadhaar No.</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Demo Auth</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">EKYC</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Bank Account</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Select for Disbursement</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Total Benefit Amount</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">S.No.</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">District Name</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">DFSO Office</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">AFSO Office</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">FPS Name</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">RC Type</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">RC Number</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">HOF Name</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Member Name</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Member ID</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Gender</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Relationship</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Date of Birth</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Age</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Aadhaar No.</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Demo Auth</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">EKYC</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Bank Account</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Select for Disbursement</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Total Benefit Amount</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectAllChecked}
+                    onChange={handleSelectAll}
+                    className="w-5 h-5 rounded cursor-pointer"
+                  />
+                  <span>Select</span>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -298,7 +347,6 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
               const isSelected = selectedFamilies.has(family.rc_no);
               const hasValidationError = validationErrors.has(family.rc_no);
               const totalBenefit = calculateBenefitAmount(family.members);
-              const isLocked = selectedDisbursements[family.rc_no]?.locked;
 
               return family.members.map((member, memberIndex) => {
                 const isFirstMember = memberIndex === 0;
@@ -310,59 +358,30 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
 
                 return (
                   <tr key={`${family.rc_no}-${member.member_id}`} className={rowBgColor}>
-                    {/* Select Checkbox - Only on first row */}
-                    {/* <td className={`px-4 py-3 ${!isFirstMember && 'border-l-4 border-gray-200'}`}>
-                      {isFirstMember && (
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleFamilySelect(family.rc_no)}
-                          className="w-5 h-5 text-blue-600 rounded cursor-pointer"
-                        />
-                      )}
-                    </td>*/}
-
-                    {/* S.No. - Adjust for pagination */}
                     <td className="px-4 py-3">
                       {isFirstMember ? startIndex + familyIndex + 1 : ''}
                     </td>
-
-                    {/* District Name - Merged for family */}
                     <td className="px-4 py-3">
                       {isFirstMember ? family.dist_name : ''}
                     </td>
-
-                    {/* DFSO Office - Merged */}
                     <td className="px-4 py-3">
                       {isFirstMember ? family.dfso_name : ''}
                     </td>
-
-                    {/* AFSO Office - Merged */}
                     <td className="px-4 py-3">
                       {isFirstMember ? family.afso_name : ''}
                     </td>
-
-                    {/* FPS Name - Merged */}
                     <td className="px-4 py-3">
                       {isFirstMember ? family.fps_name : ''}
                     </td>
-
-                    {/* RC Type - Merged */}
                     <td className="px-4 py-3">
                       {isFirstMember ? family.rc_type : ''}
                     </td>
-
-                    {/* RC Number - Merged */}
                     <td className="px-4 py-3 font-semibold">
                       {isFirstMember ? family.rc_no : ''}
                     </td>
-
-                    {/* HOF Name - Merged */}
                     <td className="px-4 py-3">
                       {isFirstMember ? family.hof_name : ''}
                     </td>
-
-                    {/* Member-specific columns */}
                     <td className="px-4 py-3">{member.member_name}</td>
                     <td className="px-4 py-3">{member.member_id}</td>
                     <td className="px-4 py-3">{member.gender}</td>
@@ -373,33 +392,25 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
                     <td className="px-4 py-3 text-center">{member.demo_auth}</td>
                     <td className="px-4 py-3 text-center">{member.ekyc}</td>
                     <td className="px-4 py-3 text-center">{member.bank_account}</td>
-
-                    {/* Radio Button for Disbursement */}
                     <td className="px-4 py-3 text-center">
-                     
-                        {member.is_disbursement_account == 'true' ? (
-                          <span className="text-green-600 font-semibold">Yes</span>
-                        ) : (
-                          <span className="text-red-600 font-semibold">No</span>
-                        )}
-      
-                      {/*   <input
-                        type="radio"
-                        name={`disbursement-${family.rc_no}`}
-                        checked={selectedDisbursements[family.rc_no]?.memberId === member.member_id}
-                        onChange={() => handleDisbursementSelect(family.rc_no, member.member_id)}
-                        disabled={isLocked}
-                        className={`w-5 h-5 text-blue-600 ${isLocked ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                      />
-                      {isLocked && selectedDisbursements[family.rc_no]?.memberId === member.member_id && (
-                        <span className="ml-2 text-xs text-green-600 font-semibold">(Auto)</span>
-                      )} 
-                        */}
+                      {member.is_disbursement_account === 'true' ? (
+                        <span className="text-green-600 font-semibold">Yes</span>
+                      ) : (
+                        <span className="text-red-600 font-semibold">No</span>
+                      )}
                     </td>
-
-                    {/* Total Benefit Amount - Only on first row */}
                     <td className="px-4 py-3 font-bold text-green-600">
                       {isFirstMember ? `₹${totalBenefit}` : ''}
+                    </td>
+                    <td className={`px-4 py-3 ${!isFirstMember && 'border-l-4 border-gray-200'}`}>
+                      {isFirstMember && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleFamilySelect(family.rc_no)}
+                          className="w-5 h-5 text-blue-600 rounded cursor-pointer"
+                        />
+                      )}
                     </td>
                   </tr>
                 );
@@ -411,7 +422,6 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
 
       {/* Pagination Controls */}
       <div className="p-4 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-        {/* Left: Rows per page */}
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-600">Families per page:</span>
           <select
@@ -429,9 +439,7 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
           </span>
         </div>
 
-        {/* Right: Page navigation */}
         <div className="flex items-center gap-2">
-          {/* Previous Button */}
           <button
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage === 1}
@@ -444,7 +452,6 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
             Previous
           </button>
 
-          {/* Page Numbers */}
           {getPageNumbers().map((page, index) => (
             <button
               key={index}
@@ -452,17 +459,17 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
               disabled={page === '...'}
               className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
                 page === currentPage
-                  ? 'bg-blue-600 text-white'
+                  ? 'text-white'
                   : page === '...'
                   ? 'bg-white text-gray-400 cursor-default'
                   : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
               }`}
+              style={page === currentPage ? { backgroundColor: '#002B70' } : {}}
             >
               {page}
             </button>
           ))}
 
-          {/* Next Button */}
           <button
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
@@ -477,22 +484,55 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
         </div>
       </div>
 
-      {/* Save Button */}
+      {/* Action Buttons - Reject and Approve */}
       <div className="p-6 border-t border-gray-200 flex justify-between items-center">
-        <div className="text-sm text-gray-600">
-          {validationErrors.size > 0 && (
-            <span className="text-red-600 font-semibold">
-              ⚠️ {validationErrors.size} family(families) missing disbursement selection
-            </span>
-          )}
-        </div>
         <button
-          onClick={handleSave}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3 rounded-lg transition shadow-md hover:shadow-lg"
+          onClick={handleReject}
+          className="bg-gray-500 hover:bg-red-600 text-white font-semibold px-8 py-3 rounded-lg transition shadow-md hover:shadow-lg"
         >
-          Sumbit
+          Reject
+        </button>
+        <button
+          onClick={handleApprove}
+          className="text-white font-semibold px-8 py-3 rounded-lg transition shadow-md hover:shadow-lg hover:opacity-90"
+          style={{ backgroundColor: '#002B70' }}
+        >
+          Approve
         </button>
       </div>
+
+      {/* Modal Components */}
+      <LoadingModal
+        isOpen={showLoadingModal}
+        title="Processing..."
+        subtitle="Please wait while we process your request."
+      />
+
+      <SuccessModal
+        isOpen={showSuccessModal}
+        title={modalMessage.title}
+        message={modalMessage.message}
+        onClose={handleSuccessClose}
+        buttonText="OK"
+      />
+
+      <ErrorModal
+        isOpen={showErrorModal}
+        title={modalMessage.title}
+        message={modalMessage.message}
+        onClose={handleErrorClose}
+        buttonText="Close"
+      />
+
+      <RemarksModal
+        isOpen={showRemarksModal}
+        title="Enter Rejection Remarks"
+        placeholder="Please provide reason for rejection..."
+        onSubmit={handleRemarksSubmit}
+        onCancel={handleRemarksCancel}
+        submitButtonText="Reject"
+        cancelButtonText="Cancel"
+      />
     </div>
   );
 };
