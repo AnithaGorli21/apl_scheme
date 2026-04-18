@@ -19,7 +19,7 @@ async function aplDataRoutes(fastify, options) {
           fpsCode: { type: 'integer' },
           rcNo: { type: 'integer' },
           distCode: { type: 'integer' },
-          sortBy: { type: 'string', default: 'created_at' },
+          sortBy: { type: 'string', default: 'rc_no' },
           sortOrder: { type: 'string', enum: ['ASC', 'DESC'], default: 'DESC' }
         }
       }

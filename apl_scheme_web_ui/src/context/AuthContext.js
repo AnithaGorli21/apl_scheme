@@ -19,14 +19,18 @@ export const AuthProvider = ({ children }) => {
     // Simple authentication - in production, this would call an API
     const validUsers = {
       'admin': 'admin123',
-      'user1': 'password123'
+      'user1': 'password123',
+      'afso': 'password123',
+      'dfso': 'password123'
+
     };
 
     if (validUsers[username] && validUsers[username] === password) {
       const userData = {
         username,
+        user_id: username === 'afso' ? 1 : 2, // Sample user IDs
         afsoOffice: 'AFSO Office - Sample Location', // Pre-filled based on user
-        role: username === 'admin' ? 'admin' : 'user'
+        role: username === 'afso' ? 'AFSO' : 'DFSO'
       };
       setUser(userData);
       localStorage.setItem('user', JSON.stringify(userData));

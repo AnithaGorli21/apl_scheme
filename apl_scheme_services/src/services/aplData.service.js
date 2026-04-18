@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const { buildPagination, buildSearchQuery, buildActiveFilter, buildOrderBy } = require('../utils/pagination');
+const { tables } = require('../config/tables');
 
 class APLDataService {
   /**
@@ -17,7 +18,7 @@ class APLDataService {
         fpsCode,
         rcNo,
         distCode,
-        sortBy = 'created_at', 
+        sortBy = 'rc_no', 
         sortOrder = 'DESC' 
       } = queryParams;
 
@@ -88,7 +89,7 @@ class APLDataService {
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
       // Get total count
-      const countQuery = `SELECT COUNT(*) FROM t_apl_data ${whereClause}`;
+      const countQuery = `SELECT COUNT(*) FROM ${tables.APL_DATA} ${whereClause}`;
       const countResult = await db.query(countQuery, params);
       const totalCount = parseInt(countResult.rows[0].count);
 
@@ -98,7 +99,7 @@ class APLDataService {
       // Get data
       const orderByClause = buildOrderBy(sortBy, sortOrder);
       const dataQuery = `
-        SELECT * FROM t_apl_data
+        SELECT * FROM ${tables.APL_DATA}
         ${whereClause}
         ${orderByClause}
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -121,7 +122,7 @@ class APLDataService {
    */
   async getById(id) {
     try {
-      const query = 'SELECT * FROM t_apl_data WHERE id = $1';
+      const query = `SELECT * FROM ${tables.APL_DATA} WHERE id = $1`;
       const result = await db.query(query, [id]);
       return result.rows[0];
     } catch (error) {
@@ -135,7 +136,7 @@ class APLDataService {
   async getByRationCard(rcNo) {
     try {
       const query = `
-        SELECT * FROM t_apl_data 
+        SELECT * FROM ${tables.APL_DATA}
         WHERE rc_no = $1 
         ORDER BY member_id ASC
       `;
@@ -193,7 +194,7 @@ class APLDataService {
               'ekyc', ekyc
             ) ORDER BY member_id
           ) as members
-        FROM t_apl_data
+        FROM ${tables.APL_DATA}
         ${whereClause}
         GROUP BY rc_no, hof_name, dist_code, dist_name, dfso_code, dfso_name, 
                  afso_code, afso_name, fps_code, fps_name, ct_card_desk
@@ -218,7 +219,7 @@ class APLDataService {
           COUNT(*) as total_members,
           COUNT(DISTINCT fps_code) as total_fps,
           COUNT(DISTINCT afso_code) as total_afso
-        FROM t_apl_data
+        FROM ${tables.APL_DATA}
         WHERE dfso_code = $1 AND is_active = true
       `;
       const result = await db.query(query, [dfsoCode]);
@@ -238,7 +239,7 @@ class APLDataService {
           COUNT(DISTINCT rc_no) as total_families,
           COUNT(*) as total_members,
           COUNT(DISTINCT fps_code) as total_fps
-        FROM t_apl_data
+        FROM ${tables.APL_DATA}
         WHERE afso_code = $1 AND is_active = true
       `;
       const result = await db.query(query, [afsoCode]);
@@ -257,8 +258,8 @@ class APLDataService {
         SELECT 
           COUNT(DISTINCT rc_no) as total_families,
           COUNT(*) as total_members
-        FROM t_apl_data
-        WHERE fps_code = $1 AND is_active = true
+        FROM ${tables.APL_DATA}
+        WHERE fps_code = $1 --AND is_active = true
       `;
       const result = await db.query(query, [fpsCode]);
       return result.rows[0];

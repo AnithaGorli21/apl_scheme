@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const { buildPagination, buildSearchQuery, buildActiveFilter, buildOrderBy } = require('../utils/pagination');
+const { tables } = require('../config/tables');
 
 class AFSOService {
   /**
@@ -45,7 +46,7 @@ class AFSOService {
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
       // Get total count
-      const countQuery = `SELECT COUNT(*) FROM m_afso ${whereClause}`;
+      const countQuery = `SELECT COUNT(*) FROM ${tables.AFSO} ${whereClause}`;
       const countResult = await db.query(countQuery, params);
       const totalCount = parseInt(countResult.rows[0].count);
 
@@ -58,8 +59,8 @@ class AFSOService {
         SELECT a.id, a.dfso_code, a.afso_code, a.description_en, a.description_ll, 
                a.is_active, a.created_at, a.created_by, a.modified_at, a.modified_by,
                d.description_en as dfso_name
-        FROM m_afso a
-        LEFT JOIN m_dfso d ON a.dfso_code = d.dfso_code
+        FROM ${tables.AFSO} a
+        LEFT JOIN ${tables.DFSO} d ON a.dfso_code = d.dfso_code
         ${whereClause}
         ${orderByClause}
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -86,9 +87,9 @@ class AFSOService {
         SELECT a.id, a.dfso_code, a.afso_code, a.description_en, a.description_ll, 
                a.is_active, a.created_at, a.created_by, a.modified_at, a.modified_by,
                d.description_en as dfso_name
-        FROM m_afso a
-        LEFT JOIN m_dfso d ON a.dfso_code = d.dfso_code
-        WHERE a.id = $1
+        FROM ${tables.AFSO} a
+        LEFT JOIN ${tables.DFSO} d ON a.dfso_code = d.dfso_code
+        WHERE a.dfso_code = $1
       `;
       const result = await db.query(query, [id]);
       return result.rows[0];
@@ -106,8 +107,8 @@ class AFSOService {
         SELECT a.id, a.dfso_code, a.afso_code, a.description_en, a.description_ll, 
                a.is_active, a.created_at, a.created_by, a.modified_at, a.modified_by,
                d.description_en as dfso_name
-        FROM m_afso a
-        LEFT JOIN m_dfso d ON a.dfso_code = d.dfso_code
+        FROM ${tables.AFSO} a
+        LEFT JOIN ${tables.DFSO} d ON a.dfso_code = d.dfso_code
         WHERE a.afso_code = $1
       `;
       const result = await db.query(query, [afsoCode]);
@@ -124,8 +125,8 @@ class AFSOService {
     try {
       const query = `
         SELECT id, afso_code, dfso_code, description_en, description_ll
-        FROM m_afso 
-        WHERE is_active = true AND dfso_code = $1
+        FROM ${tables.AFSO} 
+        WHERE dfso_code = $1
         ORDER BY afso_code ASC
       `;
       const result = await db.query(query, [dfsoCode]);
@@ -145,9 +146,9 @@ class AFSOService {
           a.id, a.afso_code, a.dfso_code, a.description_en, a.description_ll, a.is_active,
           d.description_en as dfso_name,
           COUNT(f.id) as fps_count
-        FROM m_afso a
-        LEFT JOIN m_dfso d ON a.dfso_code = d.dfso_code
-        LEFT JOIN m_fps f ON a.afso_code = f.afso_code
+        FROM ${tables.AFSO} a
+        LEFT JOIN ${tables.DFSO} d ON a.dfso_code = d.dfso_code
+        LEFT JOIN ${tables.FPS} f ON a.afso_code = f.afso_code
         WHERE a.id = $1
         GROUP BY a.id, a.afso_code, a.dfso_code, a.description_en, a.description_ll, 
                  a.is_active, d.description_en

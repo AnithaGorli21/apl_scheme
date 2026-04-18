@@ -226,7 +226,7 @@ CREATE TABLE t_apl_wip_data (
     -- Additional WIP-specific columns
     total_disbursement_amount DECIMAL(15,2) DEFAULT 0.00,
     is_disbursement_account BOOLEAN DEFAULT false,
-    status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+    status VARCHAR(50) NOT NULL DEFAULT 'SCRUTINY_PENDING',
     -- Common columns
     is_active BOOLEAN DEFAULT true NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -239,7 +239,7 @@ CREATE TABLE t_apl_wip_data (
     CONSTRAINT fk_apl_wip_dfso FOREIGN KEY (dfso_code) REFERENCES m_dfso(dfso_code),
     CONSTRAINT fk_apl_wip_afso FOREIGN KEY (afso_code) REFERENCES m_afso(afso_code),
     -- CONSTRAINT fk_apl_wip_fps FOREIGN KEY (fps_code) REFERENCES m_fps(fps_code),
-    CONSTRAINT chk_wip_status CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'))
+    CONSTRAINT chk_wip_status CHECK (status IN ('SCRUTINY_PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'))
 );
 
 -- Create indexes for better performance

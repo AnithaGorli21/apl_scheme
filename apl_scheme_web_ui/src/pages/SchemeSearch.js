@@ -1,22 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
-import BeneficiaryTable from '../components/BeneficiaryTable';
+import BeneficiaryTableAFSO from '../components/BeneficiaryTableAFSO';
+import BeneficiaryTableDFSO from '../components/BeneficiaryTableDFSO';
 
 const SchemeSearch = () => {
   const { user, logout } = useAuth();
+
+  console.log('SchemeSearch - User:', user);
+  const userRole = user?.role || 'AFSO'; // Default to AFSO if not specified
+  
   const [formData, setFormData] = useState({
     financialYear: '',
     month: '',
-    afsoOffice: user?.afsoOffice || '',
+    dfsoOffice: userRole === 'DFSO' ? (user?.dfsoOffice || 'DFSO Office - Sample Location') : '',
+    afsoOffice: userRole === 'AFSO' ? (user?.afsoOffice || 'AFSO Office - Sample Location') : '',
+    afsoCode: userRole === 'AFSO' ? (user?.afsoCode || '1500058') : '',
+    dfsoCode: userRole === 'DFSO' ? (user?.dfsoCode || '1500') : '',
     fpsName: ''
   });
   const [financialYears, setFinancialYears] = useState([]);
   const [months, setMonths] = useState([]);
+  const [dfsoList, setDfsoList] = useState([]);
+  const [afsoList, setAfsoList] = useState([]);
   const [fpsList, setFpsList] = useState([]);
   const [beneficiaries, setBeneficiaries] = useState([]);
   const [showTable, setShowTable] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isAFSO, setIsAFSO] = useState(userRole === 'AFSO');
 
   useEffect(() => {
     loadDropdownData();
@@ -24,15 +35,31 @@ const SchemeSearch = () => {
 
   const loadDropdownData = async () => {
     try {
-      const [fyData, monthData, fpsData] = await Promise.all([
+      const promises = [
         apiService.getFinancialYears(),
-        apiService.getMonths(),
-        apiService.getFPSList()
-      ]);
+        apiService.getMonths()
+      ];
       
-      setFinancialYears(fyData.data || []);
-      setMonths(monthData.data || []);
-      setFpsList(fpsData.data || []);
+       // Load AFSO list only if user is AFSO
+      if (userRole === 'AFSO') {
+        promises.push(apiService.getFPSListByAFSOCode(formData.afsoCode));
+      }
+      // Load AFSO list only if user is DFSO
+      if (userRole === 'DFSO') {
+        promises.push(apiService.getAFSOListByDFSOCode(formData.dfsoCode));
+      }
+      
+      const results = await Promise.all(promises);
+      
+      setFinancialYears(results[0].data || []);
+      setMonths(results[1].data || []);
+      
+       if (userRole === 'AFSO' && results[2]) {
+        setFpsList(results[2].data || []);
+      }
+      if (userRole === 'DFSO' && results[2]) {
+        setAfsoList(results[2].data || []);
+      }
     } catch (error) {
       console.error('Error loading dropdown data:', error);
     }
@@ -43,7 +70,12 @@ const SchemeSearch = () => {
   };
 
   const isFormValid = () => {
-    return formData.financialYear && formData.month && formData.fpsName;
+    const baseValid = formData.financialYear && formData.month;// && formData.fpsName;
+    // For DFSO role, AFSO office is also mandatory
+    if (userRole === 'DFSO') {
+      return baseValid && formData.afsoCode && formData.fpsCode;
+    }
+    return baseValid;
   };
 
   const handleProceed = async () => {
@@ -54,25 +86,57 @@ const SchemeSearch = () => {
 
     setLoading(true);
     try {
-      const data = await apiService.getBeneficiaries(formData);
+      let data;
+      // DFSO: Fetch from WIP table with SCRUTINY_PENDING status
+      if (userRole === 'DFSO') {
+        data = await apiService.getWIPBeneficiaries(formData);
+      } else {
+        // AFSO: Fetch from apl_data table
+        data = await apiService.getBeneficiaries(formData);
+      }
       setBeneficiaries(data);
       setShowTable(true);
     } catch (error) {
       console.error('Error fetching beneficiaries:', error);
-      alert('Error fetching beneficiary data');
+      alert('Error fetching beneficiary data. Please try again.');
     } finally {
       setLoading(false);
     }
   };
+
+  const handleAfsoChange = async (key, value) => {
+  // update state
+  setFormData((prev) => ({
+    ...prev,
+    [key]: value
+  }));
+
+  // call API only if value selected
+  if (value) {
+    try {
+      console.log("Fetching FPS list for AFSO code:", value);
+         const res =  await apiService.getFPSListByAFSOCode(value);
+
+        setFpsList(res.data || []);
+
+    } catch (err) {
+      console.error("Error fetching FPS list:", err);
+    }
+  }
+};
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-800">APL Scheme Management</h1>
+          <h1 className="text-2xl font-bold text-gray-800">
+            APL Scheme Management
+          </h1>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">Welcome, <strong>{user?.username}</strong></span>
+            <span className="text-sm text-gray-600">
+              Welcome, <strong>{user?.username}</strong>
+            </span>
             <button
               onClick={logout}
               className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
@@ -87,8 +151,10 @@ const SchemeSearch = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Search Form */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-6">Scheme Search</h2>
-          
+          <h2 className="text-xl font-semibold text-gray-800 mb-6">
+            Scheme Search
+          </h2>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Financial Year */}
             <div>
@@ -97,7 +163,7 @@ const SchemeSearch = () => {
               </label>
               <select
                 value={formData.financialYear}
-                onChange={(e) => handleChange('financialYear', e.target.value)}
+                onChange={(e) => handleChange("financialYear", e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
               >
                 <option value="">Select Financial Year</option>
@@ -116,7 +182,7 @@ const SchemeSearch = () => {
               </label>
               <select
                 value={formData.month}
-                onChange={(e) => handleChange('month', e.target.value)}
+                onChange={(e) => handleChange("month", e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
               >
                 <option value="">Select Month</option>
@@ -128,17 +194,48 @@ const SchemeSearch = () => {
               </select>
             </div>
 
-            {/* AFSO Office (Read-only) */}
+            {/* DFSO Office - Shows for DFSO role (Read-only) */}
+            {userRole === "DFSO" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  DFSO Office Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.dfsoOffice}
+                  readOnly
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
+                />
+              </div>
+            )}
+
+            {/* AFSO Office - Dropdown for DFSO, Read-only for AFSO */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                AFSO Office Name
+                AFSO Office Name{" "}
+                {userRole === "DFSO" && <span className="text-red-500">*</span>}
               </label>
-              <input
-                type="text"
-                value={formData.afsoOffice}
-                readOnly
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
-              />
+              {userRole === "DFSO" ? (
+                <select
+                  value={formData.afsoCode}
+                  onChange={(e) => handleAfsoChange("afsoCode", e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                >
+                  <option value="">Select AFSO Office</option>
+                  {afsoList.map((afso) => (
+                    <option key={afso.id} value={afso.afso_code}>
+                      {afso.description_en} || {afso.afso_code}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={formData.afsoOffice}
+                  readOnly
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
+                />
+              )}
             </div>
 
             {/* FPS Name */}
@@ -146,14 +243,15 @@ const SchemeSearch = () => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 FPS Name <span className="text-red-500">*</span>
               </label>
+
               <select
-                value={formData.fpsName}
-                onChange={(e) => handleChange('fpsName', e.target.value)}
+                value={formData.fpsCode}
+                onChange={(e) => handleChange("fpsCode", e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
               >
                 <option value="">Select FPS</option>
                 {fpsList.map((fps) => (
-                  <option key={fps.id} value={fps.description_en}>
+                  <option key={fps.id} value={fps.fps_code}>
                     {fps.description_en}
                   </option>
                 ))}
@@ -167,20 +265,28 @@ const SchemeSearch = () => {
               disabled={!isFormValid() || loading}
               className={`px-8 py-3 rounded-lg font-semibold text-white transition ${
                 !isFormValid() || loading
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-green-600 hover:bg-green-700 shadow-md hover:shadow-lg'
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-green-600 hover:bg-green-700 shadow-md hover:shadow-lg"
               }`}
             >
-              {loading ? 'Loading...' : 'Proceed'}
+              {loading ? "Loading..." : "Proceed"}
             </button>
           </div>
         </div>
 
         {/* Beneficiary Table */}
-        {showTable && (
-          <BeneficiaryTable 
-            beneficiaries={beneficiaries} 
+        {showTable && isAFSO && (
+          <BeneficiaryTableAFSO
+            beneficiaries={beneficiaries}
             searchParams={formData}
+            userRole={userRole}
+          />
+        )}
+        {showTable && !isAFSO && (
+          <BeneficiaryTableDFSO
+            beneficiaries={beneficiaries}
+            searchParams={formData}
+            userRole={userRole}
           />
         )}
       </main>

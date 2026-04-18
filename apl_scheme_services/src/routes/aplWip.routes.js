@@ -14,7 +14,7 @@ async function aplWipRoutes(fastify, options) {
           limit: { type: 'integer', minimum: 1, maximum: 100, default: 10 },
           search: { type: 'string' },
           isActive: { type: 'boolean' },
-          status: { type: 'string', enum: ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] },
+          status: { type: 'string', enum: ['SCRUTINY_PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] },
           dfsoCode: { type: 'integer' },
           afsoCode: { type: 'integer' },
           fpsCode: { type: 'integer' },
@@ -61,33 +61,21 @@ async function aplWipRoutes(fastify, options) {
         type: 'array',
         items: {
           type: 'object',
-          required: ['dist_code', 'dist_name', 'dfso_code', 'dfso_name', 'afso_code', 'afso_name', 
-                     'fps_code', 'fps_name', 'rc_no', 'hof_name', 'member_id', 'member_name'],
+          required: ['dist_code','dfso_code', 'afso_code', 
+                     'fps_code', 'fps_name', 'rc_no', 'hof_name', 'member_id'],
           properties: {
-            sno: { type: 'integer' },
             dist_code: { type: 'integer' },
-            dist_name: { type: 'string' },
-            dfso_code: { type: 'integer' },
-            dfso_name: { type: 'string' },
-            afso_code: { type: 'integer' },
-            afso_name: { type: 'string' },
-            fps_code: { type: 'integer' },
-            fps_name: { type: 'string' },
-            ct_card_desk: { type: 'string' },
-            rc_no: { type: 'integer' },
-            hof_name: { type: 'string' },
-            member_id: { type: 'integer' },
-            member_name: { type: 'string' },
-            gender: { type: 'string' },
-            relation_name: { type: 'string' },
-            member_dob: { type: 'string' },
-            uid: { type: 'string' },
-            demo_auth: { type: 'string' },
-            ekyc: { type: 'string' },
-            total_disbursement_amount: { type: 'number' },
-            is_disbursement_account: { type: 'boolean' },
-            status: { type: 'string', enum: ['SCRUTINY_PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] }
-          }
+          dfso_code: { type: 'integer' },
+          afso_code: { type: 'integer' },
+          fps_code: { type: 'integer' },
+          fps_name: { type: 'string' },
+          rc_no: { type: 'integer' },
+          hof_name: { type: 'string' },
+          member_id: { type: 'integer' },
+          total_benefit_amount: { type: 'number' },
+          is_disbursement_account: { type: 'boolean' },
+          status: { type: 'string', enum: ['SCRUTINY_PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] }
+         }
         }
       }
     }
@@ -120,29 +108,17 @@ async function aplWipRoutes(fastify, options) {
         required: ['dist_code', 'dist_name', 'dfso_code', 'dfso_name', 'afso_code', 'afso_name', 
                    'fps_code', 'fps_name', 'rc_no', 'hof_name', 'member_id', 'member_name'],
         properties: {
-          sno: { type: 'integer' },
           dist_code: { type: 'integer' },
-          dist_name: { type: 'string' },
           dfso_code: { type: 'integer' },
-          dfso_name: { type: 'string' },
           afso_code: { type: 'integer' },
-          afso_name: { type: 'string' },
           fps_code: { type: 'integer' },
           fps_name: { type: 'string' },
-          ct_card_desk: { type: 'string' },
           rc_no: { type: 'integer' },
           hof_name: { type: 'string' },
           member_id: { type: 'integer' },
-          member_name: { type: 'string' },
-          gender: { type: 'string' },
-          relation_name: { type: 'string' },
-          member_dob: { type: 'string', format: 'date' },
-          uid: { type: 'string' },
-          demo_auth: { type: 'string' },
-          ekyc: { type: 'string' },
-          total_disbursement_amount: { type: 'number' },
+          total_benefit_amount: { type: 'number' },
           is_disbursement_account: { type: 'boolean' },
-          status: { type: 'string', enum: ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] }
+          status: { type: 'string', enum: ['SCRUTINY_PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] }
         }
       }
     }

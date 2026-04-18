@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const { buildPagination, buildSearchQuery, buildActiveFilter, buildOrderBy } = require('../utils/pagination');
+const { tables } = require('../config/tables');
 
 class DFSOService {
   /**
@@ -38,7 +39,7 @@ class DFSOService {
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
       // Get total count
-      const countQuery = `SELECT COUNT(*) FROM m_dfso ${whereClause}`;
+      const countQuery = `SELECT COUNT(*) FROM ${tables.DFSO} ${whereClause}`;
       const countResult = await db.query(countQuery, params);
       const totalCount = parseInt(countResult.rows[0].count);
 
@@ -50,7 +51,7 @@ class DFSOService {
       const dataQuery = `
         SELECT id, dfso_code, description_en, description_ll, is_active, 
                created_at, created_by, modified_at, modified_by
-        FROM m_dfso 
+        FROM ${tables.DFSO} 
         ${whereClause}
         ${orderByClause}
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -76,8 +77,8 @@ class DFSOService {
       const query = `
         SELECT id, dfso_code, description_en, description_ll, is_active, 
                created_at, created_by, modified_at, modified_by
-        FROM m_dfso 
-        WHERE id = $1
+        FROM ${tables.DFSO} 
+        WHERE dfso_code = $1
       `;
       const result = await db.query(query, [id]);
       return result.rows[0];
@@ -94,7 +95,7 @@ class DFSOService {
       const query = `
         SELECT id, dfso_code, description_en, description_ll, is_active, 
                created_at, created_by, modified_at, modified_by
-        FROM m_dfso 
+        FROM ${tables.DFSO} 
         WHERE dfso_code = $1
       `;
       const result = await db.query(query, [dfsoCode]);
@@ -111,7 +112,7 @@ class DFSOService {
     try {
       const query = `
         SELECT id, dfso_code, description_en, description_ll
-        FROM m_dfso 
+        FROM ${tables.DFSO} 
         WHERE is_active = true
         ORDER BY dfso_code ASC
       `;
@@ -132,9 +133,9 @@ class DFSOService {
           d.id, d.dfso_code, d.description_en, d.description_ll, d.is_active,
           COUNT(DISTINCT a.id) as afso_count,
           COUNT(DISTINCT f.id) as fps_count
-        FROM m_dfso d
-        LEFT JOIN m_afso a ON d.dfso_code = a.dfso_code
-        LEFT JOIN m_fps f ON a.afso_code = f.afso_code
+        FROM ${tables.DFSO} d
+        LEFT JOIN ${tables.AFSO} a ON d.dfso_code = a.dfso_code
+        LEFT JOIN ${tables.FPS} f ON a.afso_code = f.afso_code
         WHERE d.id = $1
         GROUP BY d.id, d.dfso_code, d.description_en, d.description_ll, d.is_active
       `;

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 
-const BeneficiaryTable = ({ beneficiaries, searchParams }) => {
+const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
   const [selectedFamilies, setSelectedFamilies] = useState(new Set());
   const [selectedDisbursements, setSelectedDisbursements] = useState({});
   const [validationErrors, setValidationErrors] = useState(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
+
 
   // Reset to page 1 when beneficiaries or rowsPerPage changes
   useEffect(() => {
@@ -102,17 +103,25 @@ const BeneficiaryTable = ({ beneficiaries, searchParams }) => {
     setValidationErrors(newErrors);
   };
 
-  // Handle radio button selection
+  // Handle radio button selection with unselect capability
   const handleDisbursementSelect = (rcNo, memberId) => {
     // Check if radio buttons are locked for this family
     if (selectedDisbursements[rcNo]?.locked) {
       return;
     }
 
-    setSelectedDisbursements({
-      ...selectedDisbursements,
-      [rcNo]: { memberId, locked: false }
-    });
+    // Check if the same radio button is clicked again - unselect it
+    if (selectedDisbursements[rcNo]?.memberId === memberId) {
+      const newSelections = { ...selectedDisbursements };
+      delete newSelections[rcNo];
+      setSelectedDisbursements(newSelections);
+    } else {
+      // Select the new radio button
+      setSelectedDisbursements({
+        ...selectedDisbursements,
+        [rcNo]: { memberId, locked: false }
+      });
+    }
 
     // Clear validation error for this family
     const newErrors = new Set(validationErrors);
@@ -146,12 +155,41 @@ const BeneficiaryTable = ({ beneficiaries, searchParams }) => {
     return true;
   };
 
-  // Build payload and save
+  // Build payload and save/update based on role
   const handleSave = async () => {
     if (!validateSelection()) {
       return;
     }
 
+    // DFSO: Update status to APPROVED
+    if (userRole === 'DFSO') {
+      const rcNumbers = Array.from(selectedFamilies);
+      const payload = {
+        rc_numbers: rcNumbers,
+        status: 'APPROVED'
+      };
+
+      console.log('DFSO - Payload to update status:', JSON.stringify(payload, null, 2));
+
+      try {
+        const response = await apiService.updateWIPDataStatus(payload);
+        console.log('Update response:', response);
+        
+        // Show success message
+        if (window.confirm(`✓ Success!\n\nData updated successfully!\n${rcNumbers.length} records approved.\n\nClick OK to reset the form.`)) {
+          // Reset page
+          window.location.reload();
+        }
+      } catch (error) {
+        console.error('Error updating data:', error);
+        
+        // Show failure message
+        window.alert(`✗ Error!\n\nFailed to update data.\n${error.response?.data?.message || error.message}`);
+      }
+      return;
+    }
+
+    // AFSO: Save to WIP (Insert)
     const payload = [];
 
     selectedFamilies.forEach((rcNo) => {
@@ -165,13 +203,13 @@ const BeneficiaryTable = ({ beneficiaries, searchParams }) => {
         // Build payload matching exact API structure
         payload.push({
           sno: 0,
-          dist_code: 0, // Will be populated from actual data
+          dist_code: family.dist_code,
           dist_name: family.dist_name || "string",
-          dfso_code: 0, // Will be populated from actual data
+          dfso_code: family.dfso_code,
           dfso_name: family.dfso_name || "string",
-          afso_code: 0, // Will be populated from actual data
+          afso_code: family.afso_code,
           afso_name: family.afso_name || "string",
-          fps_code: 0, // Will be populated from actual data
+          fps_code: family.fps_code,
           fps_name: family.fps_name || "string",
           ct_card_desk: family.rc_type || "string",
           rc_no: parseInt(family.rc_no),
@@ -191,7 +229,7 @@ const BeneficiaryTable = ({ beneficiaries, searchParams }) => {
       }
     });
 
-    console.log('Payload to be saved:', JSON.stringify(payload, null, 2));
+    console.log('AFSO - Payload to be saved:', JSON.stringify(payload, null, 2));
 
     try {
       const response = await apiService.saveWIPData(payload);
@@ -205,7 +243,7 @@ const BeneficiaryTable = ({ beneficiaries, searchParams }) => {
     } catch (error) {
       console.error('Error saving data:', error);
       
-      // Show failure message with close option
+      // Show failure message
       window.alert(`✗ Error!\n\nFailed to save data.\n${error.response?.data?.message || error.message}`);
     }
   };
@@ -232,7 +270,7 @@ const BeneficiaryTable = ({ beneficiaries, searchParams }) => {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Select</th>
+             {/*  <th className="px-4 py-3 text-left font-semibold text-gray-700">Select</th> */}
               <th className="px-4 py-3 text-left font-semibold text-gray-700">S.No.</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">District Name</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">DFSO Office</th>
@@ -273,7 +311,7 @@ const BeneficiaryTable = ({ beneficiaries, searchParams }) => {
                 return (
                   <tr key={`${family.rc_no}-${member.member_id}`} className={rowBgColor}>
                     {/* Select Checkbox - Only on first row */}
-                    <td className={`px-4 py-3 ${!isFirstMember && 'border-l-4 border-gray-200'}`}>
+                    {/* <td className={`px-4 py-3 ${!isFirstMember && 'border-l-4 border-gray-200'}`}>
                       {isFirstMember && (
                         <input
                           type="checkbox"
@@ -282,7 +320,7 @@ const BeneficiaryTable = ({ beneficiaries, searchParams }) => {
                           className="w-5 h-5 text-blue-600 rounded cursor-pointer"
                         />
                       )}
-                    </td>
+                    </td>*/}
 
                     {/* S.No. - Adjust for pagination */}
                     <td className="px-4 py-3">
@@ -338,7 +376,14 @@ const BeneficiaryTable = ({ beneficiaries, searchParams }) => {
 
                     {/* Radio Button for Disbursement */}
                     <td className="px-4 py-3 text-center">
-                      <input
+                     
+                        {member.is_disbursement_account == 'true' ? (
+                          <span className="text-green-600 font-semibold">Yes</span>
+                        ) : (
+                          <span className="text-red-600 font-semibold">No</span>
+                        )}
+      
+                      {/*   <input
                         type="radio"
                         name={`disbursement-${family.rc_no}`}
                         checked={selectedDisbursements[family.rc_no]?.memberId === member.member_id}
@@ -348,7 +393,8 @@ const BeneficiaryTable = ({ beneficiaries, searchParams }) => {
                       />
                       {isLocked && selectedDisbursements[family.rc_no]?.memberId === member.member_id && (
                         <span className="ml-2 text-xs text-green-600 font-semibold">(Auto)</span>
-                      )}
+                      )} 
+                        */}
                     </td>
 
                     {/* Total Benefit Amount - Only on first row */}
@@ -444,11 +490,11 @@ const BeneficiaryTable = ({ beneficiaries, searchParams }) => {
           onClick={handleSave}
           className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3 rounded-lg transition shadow-md hover:shadow-lg"
         >
-          Save
+          Sumbit
         </button>
       </div>
     </div>
   );
 };
 
-export default BeneficiaryTable;
+export default BeneficiaryTableDFSO;

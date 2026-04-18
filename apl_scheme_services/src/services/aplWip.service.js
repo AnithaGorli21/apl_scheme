@@ -1,5 +1,6 @@
 const db = require('../config/database');
 const { buildPagination, buildSearchQuery, buildActiveFilter, buildOrderBy } = require('../utils/pagination');
+const { tables } = require('../config/tables');
 
 class APLWipService {
   /**
@@ -72,7 +73,7 @@ class APLWipService {
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
       // Get total count
-      const countQuery = `SELECT COUNT(*) FROM t_apl_wip_data ${whereClause}`;
+      const countQuery = `SELECT COUNT(*) FROM ${tables.APL_WIP} ${whereClause}`;
       const countResult = await db.query(countQuery, params);
       const totalCount = parseInt(countResult.rows[0].count);
 
@@ -82,7 +83,7 @@ class APLWipService {
       // Get data
       const orderByClause = buildOrderBy(sortBy, sortOrder);
       const dataQuery = `
-        SELECT * FROM t_apl_wip_data
+        SELECT * FROM ${tables.APL_WIP}
         ${whereClause}
         ${orderByClause}
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -105,7 +106,7 @@ class APLWipService {
    */
   async getById(id) {
     try {
-      const query = 'SELECT * FROM t_apl_wip_data WHERE id = $1';
+      const query = `SELECT * FROM ${tables.APL_WIP} WHERE id = $1`;
       const result = await db.query(query, [id]);
       return result.rows[0];
     } catch (error) {
@@ -126,45 +127,35 @@ class APLWipService {
       
       for (const wipData of wipDataArray) {
         const query = `
-          INSERT INTO t_apl_wip_data (
-            sno, dist_code, dist_name, dfso_code, dfso_name, afso_code, afso_name,
-            fps_code, fps_name, ct_card_desk, rc_no, hof_name, member_id, member_name,
-            gender, relation_name, member_dob, uid, demo_auth, ekyc,
-            total_disbursement_amount, is_disbursement_account, status,
+          INSERT INTO ${tables.APL_WIP} (
+            dist_code, dfso_code, afso_code,
+            fps_code, fps_name, rc_no, hof_name, member_id,
+            wf_status,
             created_by, is_active
+            --total_benefit_amount,
+            -- is_disbursement_account, 
+
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-            $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+            --, $12, $13, $14,
           )
           RETURNING *
         `;
 
         const params = [
-          wipData.sno || 0,
           wipData.dist_code,
-          wipData.dist_name,
           wipData.dfso_code,
-          wipData.dfso_name,
           wipData.afso_code,
-          wipData.afso_name,
           wipData.fps_code,
           wipData.fps_name,
-          wipData.ct_card_desk || null,
           wipData.rc_no,
           wipData.hof_name,
           wipData.member_id,
-          wipData.member_name,
-          wipData.gender || null,
-          wipData.relation_name || null,
-          wipData.member_dob || null,
-          wipData.uid || null,
-          wipData.demo_auth || null,
-          wipData.ekyc || null,
-          wipData.total_disbursement_amount || 0,
-          wipData.is_disbursement_account || true,
           wipData.status || 'PENDING',
           userId,
           true
+          //wipData.total_benefit_amount || 0,
+          //wipData.is_disbursement_account || true,
         ];
 
         const result = await client.query(query, params);
@@ -192,7 +183,7 @@ class APLWipService {
   async create(wipData, userId = 1) {
     try {
       const query = `
-        INSERT INTO t_apl_wip_data (
+        INSERT INTO ${tables.APL_WIP} (
           sno, dist_code, dist_name, dfso_code, dfso_name, afso_code, afso_name,
           fps_code, fps_name, ct_card_desk, rc_no, hof_name, member_id, member_name,
           gender, relation_name, member_dob, uid, demo_auth, ekyc,
@@ -246,7 +237,7 @@ class APLWipService {
   async update(id, wipData, userId = 1) {
     try {
       const query = `
-        UPDATE t_apl_wip_data 
+        UPDATE ${tables.APL_WIP} 
         SET 
           sno = $1, dist_code = $2, dist_name = $3, dfso_code = $4, dfso_name = $5,
           afso_code = $6, afso_name = $7, fps_code = $8, fps_name = $9,
@@ -302,7 +293,7 @@ class APLWipService {
   async approve(id, userId = 1, remarks = null) {
     try {
       const query = `
-        UPDATE t_apl_wip_data 
+        UPDATE ${tables.APL_WIP} 
         SET status = 'APPROVED',
             approved_by = $1,
             approved_at = CURRENT_TIMESTAMP,
@@ -326,7 +317,7 @@ class APLWipService {
   async reject(id, userId = 1, remarks = null) {
     try {
       const query = `
-        UPDATE t_apl_wip_data 
+        UPDATE ${tables.APL_WIP} 
         SET status = 'REJECTED',
             approved_by = $1,
             approved_at = CURRENT_TIMESTAMP,
@@ -349,7 +340,7 @@ class APLWipService {
    */
   async delete(id) {
     try {
-      const query = 'DELETE FROM t_apl_wip_data WHERE id = $1 RETURNING *';
+      const query = `DELETE FROM ${tables.APL_WIP} WHERE id = $1 RETURNING *`;
       const result = await db.query(query, [id]);
       return result.rows[0];
     } catch (error) {
@@ -365,11 +356,11 @@ class APLWipService {
       const query = `
         SELECT 
           COUNT(*) as total,
-          COUNT(*) FILTER (WHERE status = 'PENDING') as pending,
+          COUNT(*) FILTER (WHERE status = 'SCRUTINY_PENDING') as pending,
           COUNT(*) FILTER (WHERE status = 'APPROVED') as approved,
           COUNT(*) FILTER (WHERE status = 'REJECTED') as rejected,
           COUNT(*) FILTER (WHERE status = 'CANCELLED') as cancelled
-        FROM t_apl_wip_data
+        FROM ${tables.APL_WIP}
       `;
       const result = await db.query(query);
       return result.rows[0];

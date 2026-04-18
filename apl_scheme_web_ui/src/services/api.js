@@ -13,8 +13,9 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (user.username) {
-      config.headers['x-user-id'] = user.username;
+    console.log('API Request - User:', user);
+    if (user.user_id) {
+      config.headers['x-user-id'] = user.user_id;
     }
     return config;
   },
@@ -59,10 +60,14 @@ const transformToFamilyStructure = (apiData) => {
         afso_name: record.afso_name,
         fps_name: record.fps_name,
         hof_name: record.hof_name,
+        dist_code: record.dist_code,
+        dfso_code: record.dfso_code,
+        afso_code: record.afso_code,
+        fps_code: record.fps_code,
         members: []
       });
     }
-
+       
     const family = familiesMap.get(rcNo);
     family.members.push({
       member_id: record.member_id,
@@ -75,7 +80,11 @@ const transformToFamilyStructure = (apiData) => {
       demo_auth: record.demo_auth,
       ekyc: record.ekyc,
       bank_account: determineBankAccount(record),
-      is_hof: record.relation_name === 'HOF' || record.relation_name === 'Self'
+      is_hof: record.hof_name === record.member_name,
+      dist_code: record.dist_code,
+      dfso_code: record.dfso_code,
+      afso_code: record.afso_code,
+      fps_code: record.fps_code,
     });
   });
 
@@ -232,10 +241,43 @@ export const apiService = {
     };
   },
 
+  // AFSO
+  getAFSOList: async () => {
+    try {
+      const response = await api.get('/afso?page=1&limit=100&sortBy=afso_code&sortOrder=ASC');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching AFSO list:', error);
+      return { data: [] };
+    }
+  },
+
+   // AFSO
+  getAFSOListByDFSOCode: async (dfsoCode) => {
+    try {
+      const response = await api.get(`/afso/dfso/${dfsoCode}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching AFSO list:', error);
+      return { data: [] };
+    }
+  },
+
   // FPS
   getFPSList: async () => {
     try {
       const response = await api.get('/fps?isActive=true&limit=100');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching FPS list:', error);
+      return { data: [] };
+    }
+  },
+
+   // FPS
+  getFPSListByAFSOCode: async (afsoCode) => {
+    try {
+      const response = await api.get(`/fps/afso/${afsoCode}`);
       return response.data;
     } catch (error) {
       console.error('Error fetching FPS list:', error);
@@ -251,7 +293,9 @@ export const apiService = {
       console.log('Using mock data (REACT_APP_USE_MOCK_DATA=true)');
       return getMockBeneficiaries(params);
     }
-    
+    console.log('Fetching beneficiaries with params:', params);
+      // 'http://localhost:3000/api/v1/apl-data/?page=1&limit=10&fpsCode=150005800001&sortBy=rc_no&sortOrder=DESC' \
+
     // Fetch from real API
     try {
       console.log('Fetching from API (REACT_APP_USE_MOCK_DATA=false)');
@@ -259,9 +303,10 @@ export const apiService = {
         params: {
           page: 1,
           limit: 100,
-          sortBy: 'created_at',
+          sortBy: 'rc_no',
           sortOrder: 'DESC',
-          isActive: true
+          // isActive: true,
+          fpsCode: params.fpsCode,
         }
       });
 
@@ -277,9 +322,42 @@ export const apiService = {
     }
   },
 
+  // Get WIP beneficiaries with SCRUTINY_PENDING status
+  getWIPBeneficiaries: async (params) => {
+    try {
+      console.log('Fetching WIP data with status SCRUTINY_PENDING');
+      const response = await api.get('/apl-wip/', {
+        params: {
+          page: 1,
+          limit: 100,
+          sortBy: 'rc_no',
+          sortOrder: 'DESC',
+          isActive: true,
+          wf_status: 'SCRUTINY_PENDING'
+        }
+      });
+
+      console.log('WIP API Response:', response.data);
+      
+      // Transform API response to family structure
+      const families = transformToFamilyStructure(response.data.data);
+      console.log('Transformed to families:', families.length);
+      return families;
+    } catch (error) {
+      console.error('Error fetching WIP data:', error);
+      throw error;
+    }
+  },
+
   // Save WIP data (bulk insert)
   saveWIPData: async (payload) => {
     const response = await api.post('/apl-wip/bulk', payload);
+    return response.data;
+  },
+
+  // Update WIP data status (bulk update to APPROVED)
+  updateWIPDataStatus: async (payload) => {
+    const response = await api.put('/apl-wip/bulk-update-status', payload);
     return response.data;
   }
 };
