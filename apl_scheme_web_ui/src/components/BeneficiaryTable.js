@@ -138,11 +138,26 @@ const BeneficiaryTable = ({
     setValidationErrors(newErrors);
   };
 
-  // Clear all selections
+  // Clear all selections including radio buttons
   const handleClearAll = () => {
     setSelectedFamilies(new Set());
     setValidationErrors(new Set());
     setSelectAllChecked(false);
+    
+    // Reset radio buttons to initial auto-selected state
+    const autoSelections = {};
+    beneficiaries.forEach((family) => {
+      const hofMember = family.members.find(m => m.is_hof);
+      
+      // Auto-select if HOF has bank account
+      if (hofMember && hofMember.bank_account === 'Yes') {
+        autoSelections[family.rc_no] = {
+          memberId: hofMember.member_id,
+          locked: true
+        };
+      }
+    });
+    setSelectedDisbursements(autoSelections);
   };
 
   // Update Select All checkbox state when page changes or selections change
