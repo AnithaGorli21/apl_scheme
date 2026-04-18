@@ -104,7 +104,7 @@ class FPSService {
         FROM ${tables.FPS} f
         LEFT JOIN ${tables.AFSO} a ON f.afso_code = a.afso_code
         LEFT JOIN ${tables.DFSO} d ON a.dfso_code = d.dfso_code
-        WHERE f.id = $1
+        WHERE f.id = $1 Order by f.description_en ASC
       `;
       const result = await db.query(query, [id]);
       return result.rows[0];
@@ -144,7 +144,7 @@ class FPSService {
         SELECT id, fps_code, afso_code, description_en, description_ll
         FROM ${tables.FPS} 
         WHERE afso_code = $1 --is_active = true AND 
-        ORDER BY fps_code ASC
+        ORDER BY description_en ASC
       `;
       const result = await db.query(query, [afsoCode]);
       return result.rows;

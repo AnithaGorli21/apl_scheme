@@ -393,7 +393,7 @@ const BeneficiaryTableAFSO = ({ beneficiaries, searchParams, userRole }) => {
       <div className="p-4 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
         {/* Left: Rows per page */}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Rows per page:</span>
+          <span className="text-sm text-gray-600">Families per page:</span>
           <select
             value={rowsPerPage}
             onChange={handleRowsPerPageChange}

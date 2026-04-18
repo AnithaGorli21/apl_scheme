@@ -1,13 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { apiService } from '../services/api';
 
-const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
+/**
+ * Reusable Beneficiary Table Component
+ * Used for both New Scrutiny and Old Scrutiny Records
+ * 
+ * @param {Array} beneficiaries - Array of family beneficiary data
+ * @param {Object} searchParams - Search parameters used to fetch data
+ * @param {Function} onSelectionChange - Callback when selection changes (for final submit)
+ * @param {string} tabType - Type of tab ('new' or 'old')
+ */
+const BeneficiaryTable = ({ 
+  beneficiaries, 
+  searchParams, 
+  onSelectionChange,
+  tabType = 'new'
+}) => {
   const [selectedFamilies, setSelectedFamilies] = useState(new Set());
   const [selectedDisbursements, setSelectedDisbursements] = useState({});
   const [validationErrors, setValidationErrors] = useState(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-
 
   // Reset to page 1 when beneficiaries or rowsPerPage changes
   useEffect(() => {
@@ -30,6 +42,14 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
     });
     setSelectedDisbursements(autoSelections);
   }, [beneficiaries]);
+
+  // Notify parent component of selection changes
+  useEffect(() => {
+    if (onSelectionChange) {
+      const selectedData = buildPayload();
+      onSelectionChange(selectedData, tabType);
+    }
+  }, [selectedFamilies, selectedDisbursements]);
 
   // Pagination calculations
   const totalPages = Math.ceil(beneficiaries.length / rowsPerPage);
@@ -129,14 +149,44 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
     setValidationErrors(newErrors);
   };
 
-  // Validate before save
+  // Build payload for selected families
+  const buildPayload = () => {
+    const payload = [];
+
+    selectedFamilies.forEach((rcNo) => {
+      const family = beneficiaries.find(f => f.rc_no === rcNo);
+      const selectedMemberId = selectedDisbursements[rcNo]?.memberId;
+      const selectedMember = family?.members.find(m => m.member_id === selectedMemberId);
+
+      if (family && selectedMember) {
+        const totalBenefitAmount = calculateBenefitAmount(family.members);
+
+        payload.push({
+          rc_no: parseInt(family.rc_no),
+          hof_name: family.hof_name || "string",
+          member_id: parseInt(selectedMember.member_id),
+          dist_code: family.dist_code,
+          dfso_code: family.dfso_code,
+          afso_code: family.afso_code,
+          fps_code: family.fps_code,
+          fps_name: family.fps_name || "string",
+          total_benefit_amount: totalBenefitAmount,
+          is_disbursement_account: true,
+          wf_status: "SCRUTINY_PENDING"
+        });
+      }
+    });
+
+    return payload;
+  };
+
+  // Validate selections
   const validateSelection = () => {
     const errors = new Set();
 
     // Check if at least one family is selected
     if (selectedFamilies.size === 0) {
-      alert('Please select at least one family');
-      return false;
+      return { valid: false, message: 'Please select at least one family' };
     }
 
     // Check if each selected family has a disbursement member selected
@@ -148,105 +198,34 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
 
     if (errors.size > 0) {
       setValidationErrors(errors);
-      alert(`Please select a disbursement member for ${errors.size} family(families) highlighted in red`);
-      return false;
-    }
-
-    return true;
-  };
-
-  // Build payload and save/update based on role
-  const handleSave = async () => {
-    if (!validateSelection()) {
-      return;
-    }
-
-    // DFSO: Update status to APPROVED
-    if (userRole === 'DFSO') {
-      const rcNumbers = Array.from(selectedFamilies);
-      const payload = {
-        rc_numbers: rcNumbers,
-        status: 'APPROVED'
+      return { 
+        valid: false, 
+        message: `Please select a disbursement member for ${errors.size} family(families) highlighted in red` 
       };
-
-      console.log('DFSO - Payload to update status:', JSON.stringify(payload, null, 2));
-
-      try {
-        const response = await apiService.updateWIPDataStatus(payload);
-        console.log('Update response:', response);
-        
-        // Show success message
-        if (window.confirm(`✓ Success!\n\nData updated successfully!\n${rcNumbers.length} records approved.\n\nClick OK to reset the form.`)) {
-          // Reset page
-          window.location.reload();
-        }
-      } catch (error) {
-        console.error('Error updating data:', error);
-        
-        // Show failure message
-        window.alert(`✗ Error!\n\nFailed to update data.\n${error.response?.data?.message || error.message}`);
-      }
-      return;
     }
 
-    // AFSO: Save to WIP (Insert)
-    const payload = [];
-
-    selectedFamilies.forEach((rcNo) => {
-      const family = beneficiaries.find(f => f.rc_no === rcNo);
-      const selectedMemberId = selectedDisbursements[rcNo]?.memberId;
-      const selectedMember = family.members.find(m => m.member_id === selectedMemberId);
-
-      if (family && selectedMember) {
-        const totalBenefitAmount = calculateBenefitAmount(family.members);
-        
-        // Build payload matching exact API structure
-        payload.push({
-          sno: 0,
-          dist_code: family.dist_code,
-          dist_name: family.dist_name || "string",
-          dfso_code: family.dfso_code,
-          dfso_name: family.dfso_name || "string",
-          afso_code: family.afso_code,
-          afso_name: family.afso_name || "string",
-          fps_code: family.fps_code,
-          fps_name: family.fps_name || "string",
-          ct_card_desk: family.rc_type || "string",
-          rc_no: parseInt(family.rc_no),
-          hof_name: family.hof_name || "string",
-          member_id: parseInt(selectedMember.member_id),
-          member_name: selectedMember.member_name || "string",
-          gender: selectedMember.gender || "string",
-          relation_name: selectedMember.relation || "string",
-          member_dob: selectedMember.dob || "string",
-          uid: selectedMember.aadhaar || "string",
-          demo_auth: selectedMember.demo_auth || "string",
-          ekyc: selectedMember.ekyc || "string",
-          total_disbursement_amount: totalBenefitAmount,
-          is_disbursement_account: true,
-          status: "SCRUTINY_PENDING"
-        });
-      }
-    });
-
-    console.log('AFSO - Payload to be saved:', JSON.stringify(payload, null, 2));
-
-    try {
-      const response = await apiService.saveWIPData(payload);
-      console.log('Save response:', response);
-      
-      // Show success message
-      if (window.confirm(`✓ Success!\n\nData saved successfully!\n${response.meta?.count || payload.length} records inserted.\n\nClick OK to reset the form.`)) {
-        // Reset page
-        window.location.reload();
-      }
-    } catch (error) {
-      console.error('Error saving data:', error);
-      
-      // Show failure message
-      window.alert(`✗ Error!\n\nFailed to save data.\n${error.response?.data?.message || error.message}`);
-    }
+    return { valid: true };
   };
+
+  // Get validation result (exposed for parent component)
+  const getValidationResult = () => {
+    return validateSelection();
+  };
+
+  // Get selected data (exposed for parent component)
+  const getSelectedData = () => {
+    const validation = validateSelection();
+    if (!validation.valid) {
+      return { valid: false, message: validation.message, data: [] };
+    }
+    return { valid: true, data: buildPayload() };
+  };
+
+  // Expose methods to parent via ref or callback
+  React.useImperativeHandle(React.useRef(), () => ({
+    getSelectedData,
+    getValidationResult
+  }));
 
   if (beneficiaries.length === 0) {
     return (
@@ -270,7 +249,7 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-             {/*  <th className="px-4 py-3 text-left font-semibold text-gray-700">Select</th> */}
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Select</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">S.No.</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">District Name</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">DFSO Office</th>
@@ -282,14 +261,14 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
               <th className="px-4 py-3 text-left font-semibold text-gray-700">Member Name</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">Member ID</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">Gender</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Relationship</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Relationship with HOF</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">Date of Birth</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">Age</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">Aadhaar No.</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Demo Auth</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">EKYC</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Bank Account</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Select for Disbursement</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Demographic Authentication Completed</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">EKYC Status</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Aadhaar Linked Bank account available?</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Select Account for Disbursement</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">Total Benefit Amount</th>
             </tr>
           </thead>
@@ -311,7 +290,7 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
                 return (
                   <tr key={`${family.rc_no}-${member.member_id}`} className={rowBgColor}>
                     {/* Select Checkbox - Only on first row */}
-                    {/* <td className={`px-4 py-3 ${!isFirstMember && 'border-l-4 border-gray-200'}`}>
+                    <td className={`px-4 py-3 ${!isFirstMember && 'border-l-4 border-gray-200'}`}>
                       {isFirstMember && (
                         <input
                           type="checkbox"
@@ -320,7 +299,7 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
                           className="w-5 h-5 text-blue-600 rounded cursor-pointer"
                         />
                       )}
-                    </td>*/}
+                    </td>
 
                     {/* S.No. - Adjust for pagination */}
                     <td className="px-4 py-3">
@@ -376,16 +355,9 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
 
                     {/* Radio Button for Disbursement */}
                     <td className="px-4 py-3 text-center">
-                     
-                        {member.is_disbursement_account == 'true' ? (
-                          <span className="text-green-600 font-semibold">Yes</span>
-                        ) : (
-                          <span className="text-red-600 font-semibold">No</span>
-                        )}
-      
-                      {/*   <input
+                      <input
                         type="radio"
-                        name={`disbursement-${family.rc_no}`}
+                        name={`disbursement-${tabType}-${family.rc_no}`}
                         checked={selectedDisbursements[family.rc_no]?.memberId === member.member_id}
                         onChange={() => handleDisbursementSelect(family.rc_no, member.member_id)}
                         disabled={isLocked}
@@ -393,8 +365,7 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
                       />
                       {isLocked && selectedDisbursements[family.rc_no]?.memberId === member.member_id && (
                         <span className="ml-2 text-xs text-green-600 font-semibold">(Auto)</span>
-                      )} 
-                        */}
+                      )}
                     </td>
 
                     {/* Total Benefit Amount - Only on first row */}
@@ -477,24 +448,16 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
         </div>
       </div>
 
-      {/* Save Button */}
-      <div className="p-6 border-t border-gray-200 flex justify-between items-center">
-        <div className="text-sm text-gray-600">
-          {validationErrors.size > 0 && (
-            <span className="text-red-600 font-semibold">
-              ⚠️ {validationErrors.size} family(families) missing disbursement selection
-            </span>
-          )}
+      {/* Validation Error Message */}
+      {validationErrors.size > 0 && (
+        <div className="px-6 pb-4">
+          <p className="text-sm text-red-600 font-semibold">
+            ⚠️ {validationErrors.size} family(families) missing disbursement selection
+          </p>
         </div>
-        <button
-          onClick={handleSave}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3 rounded-lg transition shadow-md hover:shadow-lg"
-        >
-          Sumbit
-        </button>
-      </div>
+      )}
     </div>
   );
 };
 
-export default BeneficiaryTableDFSO;
+export default BeneficiaryTable;

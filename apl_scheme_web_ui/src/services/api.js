@@ -38,8 +38,8 @@ const calculateAge = (dob) => {
 // Determine bank account availability
 const determineBankAccount = (record) => {
   // Assume HOF has bank account if ekyc is completed
-  if (record.relation_name === 'HOF' || record.relation_name === 'Self') {
-    return record.ekyc === 'Yes' ? 'Yes' : 'No';
+  if (record.relation_name === 'HOF' || record.relation_name === 'SELF') {
+    return record.ekyc === 'Y' ? 'Yes' : 'No';
   }
   return 'No';
 };
@@ -74,13 +74,13 @@ const transformToFamilyStructure = (apiData) => {
       member_name: record.member_name,
       gender: record.gender,
       relation: record.relation_name,
-      dob: record.member_dob,
-      age: calculateAge(record.member_dob),
+      dob: record.member_dob || record.meber_dob,
+      age: calculateAge(record.member_dob || record.meber_dob),
       aadhaar: record.uid,
       demo_auth: record.demo_auth,
       ekyc: record.ekyc,
       bank_account: determineBankAccount(record),
-      is_hof: record.hof_name === record.member_name,
+      is_hof: record.relation_name === 'SELF' || record.relation_name === 'HOF',
       dist_code: record.dist_code,
       dfso_code: record.dfso_code,
       afso_code: record.afso_code,
@@ -322,7 +322,7 @@ export const apiService = {
     }
   },
 
-  // Get WIP beneficiaries with SCRUTINY_PENDING status
+  // Get WIP beneficiaries with SCRUTINY_PENDING status (for DFSO)
   getWIPBeneficiaries: async (params) => {
     try {
       console.log('Fetching WIP data with status SCRUTINY_PENDING');
@@ -346,6 +346,35 @@ export const apiService = {
     } catch (error) {
       console.error('Error fetching WIP data:', error);
       throw error;
+    }
+  },
+
+  // Get Old Scrutiny Records (WIP data for AFSO - existing scrutiny records)
+  getOldScrutinyRecords: async (params) => {
+    try {
+      console.log('Fetching Old Scrutiny Records from WIP for AFSO');
+      const response = await api.get('/apl-wip/', {
+        params: {
+          page: 1,
+          limit: 100,
+          sortBy: 'rc_no',
+          sortOrder: 'DESC',
+          isActive: true,
+          fpsCode: params.fpsCode,
+          // Can add more filters if needed
+        }
+      });
+
+      console.log('Old Scrutiny API Response:', response.data);
+      
+      // Transform API response to family structure
+      const families = transformToFamilyStructure(response.data.data);
+      console.log('Transformed to families:', families.length);
+      return families;
+    } catch (error) {
+      console.error('Error fetching old scrutiny data:', error);
+      // Return empty array instead of throwing to allow graceful handling
+      return [];
     }
   },
 

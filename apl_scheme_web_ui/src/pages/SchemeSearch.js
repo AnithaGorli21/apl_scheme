@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import BeneficiaryTableAFSO from '../components/BeneficiaryTableAFSO';
 import BeneficiaryTableDFSO from '../components/BeneficiaryTableDFSO';
+import TabContainer from '../components/TabContainer';
+import BeneficiaryTable from '../components/BeneficiaryTable';
 
 const SchemeSearch = () => {
   const { user, logout } = useAuth();
@@ -15,8 +17,8 @@ const SchemeSearch = () => {
     month: '',
     dfsoOffice: userRole === 'DFSO' ? (user?.dfsoOffice || 'DFSO Office - Sample Location') : '',
     afsoOffice: userRole === 'AFSO' ? (user?.afsoOffice || 'AFSO Office - Sample Location') : '',
-    afsoCode: userRole === 'AFSO' ? (user?.afsoCode || '1500058') : '',
-    dfsoCode: userRole === 'DFSO' ? (user?.dfsoCode || '1500') : '',
+    afsoCode: userRole === 'AFSO' ? (user?.afsoCode || '1502308') : '',
+    dfsoCode: userRole === 'DFSO' ? (user?.dfsoCode || '1502') : '',
     fpsName: ''
   });
   const [financialYears, setFinancialYears] = useState([]);
@@ -28,6 +30,15 @@ const SchemeSearch = () => {
   const [showTable, setShowTable] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isAFSO, setIsAFSO] = useState(userRole === 'AFSO');
+
+  // State for AFSO tabbed interface
+  const [activeTab, setActiveTab] = useState('new');
+  const [newScrutinyData, setNewScrutinyData] = useState([]);
+  const [oldScrutinyData, setOldScrutinyData] = useState([]);
+  const [selectedDataFromTabs, setSelectedDataFromTabs] = useState({
+    new: [],
+    old: []
+  });
 
   useEffect(() => {
     loadDropdownData();
@@ -86,15 +97,19 @@ const SchemeSearch = () => {
 
     setLoading(true);
     try {
-      let data;
-      // DFSO: Fetch from WIP table with SCRUTINY_PENDING status
       if (userRole === 'DFSO') {
-        data = await apiService.getWIPBeneficiaries(formData);
+        // DFSO: Fetch from WIP table with SCRUTINY_PENDING status
+        const data = await apiService.getWIPBeneficiaries(formData);
+        setBeneficiaries(data);
       } else {
-        // AFSO: Fetch from apl_data table
-        data = await apiService.getBeneficiaries(formData);
+        // AFSO: Fetch both new and old scrutiny data
+        const [newData, oldData] = await Promise.all([
+          apiService.getBeneficiaries(formData),
+          apiService.getOldScrutinyRecords(formData)
+        ]);
+        setNewScrutinyData(newData);
+        setOldScrutinyData(oldData);
       }
-      setBeneficiaries(data);
       setShowTable(true);
     } catch (error) {
       console.error('Error fetching beneficiaries:', error);
@@ -105,25 +120,65 @@ const SchemeSearch = () => {
   };
 
   const handleAfsoChange = async (key, value) => {
-  // update state
-  setFormData((prev) => ({
-    ...prev,
-    [key]: value
-  }));
+    // update state
+    setFormData((prev) => ({
+      ...prev,
+      [key]: value
+    }));
 
-  // call API only if value selected
-  if (value) {
-    try {
-      console.log("Fetching FPS list for AFSO code:", value);
-         const res =  await apiService.getFPSListByAFSOCode(value);
-
+    // call API only if value selected
+    if (value) {
+      try {
+        console.log("Fetching FPS list for AFSO code:", value);
+        const res = await apiService.getFPSListByAFSOCode(value);
         setFpsList(res.data || []);
-
-    } catch (err) {
-      console.error("Error fetching FPS list:", err);
+      } catch (err) {
+        console.error("Error fetching FPS list:", err);
+      }
     }
-  }
-};
+  };
+
+  // Handle selection changes from BeneficiaryTable components
+  const handleSelectionChange = (selectedData, tabType) => {
+    setSelectedDataFromTabs(prev => ({
+      ...prev,
+      [tabType]: selectedData
+    }));
+  };
+
+  // Handle Final Submit (combines data from both tabs)
+  const handleFinalSubmit = async () => {
+    const newTabData = selectedDataFromTabs.new || [];
+    const oldTabData = selectedDataFromTabs.old || [];
+
+    // Validate that at least one tab has selections
+    if (newTabData.length === 0 && oldTabData.length === 0) {
+      alert('Please select at least one family from either tab before submitting');
+      return;
+    }
+
+    // Combine data from both tabs
+    const combinedPayload = [...newTabData, ...oldTabData];
+
+    console.log('Final Submit - Combined Payload:', JSON.stringify(combinedPayload, null, 2));
+    console.log(`New Scrutiny: ${newTabData.length} records, Old Scrutiny: ${oldTabData.length} records`);
+
+    try {
+      const response = await apiService.saveWIPData(combinedPayload);
+      console.log('Save response:', response);
+      
+      // Show success message
+      if (window.confirm(`✓ Success!\n\nData saved successfully!\n${response.meta?.count || combinedPayload.length} records inserted.\n\nClick OK to reset the form.`)) {
+        // Reset page
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Error saving data:', error);
+      
+      // Show failure message
+      window.alert(`✗ Error!\n\nFailed to save data.\n${error.response?.data?.message || error.message}`);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -274,14 +329,58 @@ const SchemeSearch = () => {
           </div>
         </div>
 
-        {/* Beneficiary Table */}
+        {/* Beneficiary Tables */}
         {showTable && isAFSO && (
-          <BeneficiaryTableAFSO
-            beneficiaries={beneficiaries}
-            searchParams={formData}
-            userRole={userRole}
-          />
+          <div className="bg-white rounded-lg shadow p-6">
+            {/* Tab Navigation */}
+            <TabContainer
+              tabs={[
+                { id: 'new', label: 'New Scrutiny', count: newScrutinyData.length },
+                { id: 'old', label: 'Old Scrutiny Records', count: oldScrutinyData.length }
+              ]}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+            />
+
+            {/* Tab Content */}
+            <div className="mt-6">
+              {activeTab === 'new' && (
+                <BeneficiaryTable
+                  beneficiaries={newScrutinyData}
+                  searchParams={formData}
+                  onSelectionChange={handleSelectionChange}
+                  tabType="new"
+                />
+              )}
+              
+              {activeTab === 'old' && (
+                <BeneficiaryTable
+                  beneficiaries={oldScrutinyData}
+                  searchParams={formData}
+                  onSelectionChange={handleSelectionChange}
+                  tabType="old"
+                />
+              )}
+            </div>
+
+            {/* Final Submit Button */}
+            <div className="mt-6 pt-6 border-t border-gray-200 flex justify-between items-center">
+              <div className="text-sm text-gray-600">
+                <span className="font-semibold">Selected: </span>
+                New Scrutiny: {selectedDataFromTabs.new.length} | 
+                Old Scrutiny: {selectedDataFromTabs.old.length} | 
+                Total: {selectedDataFromTabs.new.length + selectedDataFromTabs.old.length}
+              </div>
+              <button
+                onClick={handleFinalSubmit}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3 rounded-lg transition shadow-md hover:shadow-lg"
+              >
+                Final Submit
+              </button>
+            </div>
+          </div>
         )}
+
         {showTable && !isAFSO && (
           <BeneficiaryTableDFSO
             beneficiaries={beneficiaries}

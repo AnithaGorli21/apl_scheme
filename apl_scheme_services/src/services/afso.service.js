@@ -89,7 +89,7 @@ class AFSOService {
                d.description_en as dfso_name
         FROM ${tables.AFSO} a
         LEFT JOIN ${tables.DFSO} d ON a.dfso_code = d.dfso_code
-        WHERE a.dfso_code = $1
+        WHERE a.dfso_code = $1 Order by a.description_en ASC
       `;
       const result = await db.query(query, [id]);
       return result.rows[0];
@@ -127,7 +127,7 @@ class AFSOService {
         SELECT id, afso_code, dfso_code, description_en, description_ll
         FROM ${tables.AFSO} 
         WHERE dfso_code = $1
-        ORDER BY afso_code ASC
+        ORDER BY description_en ASC
       `;
       const result = await db.query(query, [dfsoCode]);
       return result.rows;
