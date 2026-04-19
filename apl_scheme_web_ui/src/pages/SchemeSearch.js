@@ -8,9 +8,9 @@ import BeneficiaryTable from '../components/BeneficiaryTable';
 import LoadingModal from '../components/modals/LoadingModal';
 import SuccessModal from '../components/modals/SuccessModal';
 import ErrorModal from '../components/modals/ErrorModal';
-
 const SchemeSearch = () => {
   const { user, logout } = useAuth();
+
 
   console.log('SchemeSearch - User:', user);
   const userRole = user?.role || 'AFSO'; // Default to AFSO if not specified
@@ -52,6 +52,38 @@ const SchemeSearch = () => {
   useEffect(() => {
     loadDropdownData();
   }, []);
+
+  useEffect(() => {
+  const handleBeforeUnload = (e) => {
+    e.preventDefault();
+    e.returnValue = "";
+  };
+
+  window.addEventListener("beforeunload", handleBeforeUnload);
+
+  return () => {
+    window.removeEventListener("beforeunload", handleBeforeUnload);
+  };
+}, []);
+
+
+useEffect(() => {
+  const handlePopState = () => {
+    const confirmLeave = window.confirm(
+      "Are you sure you want to go back?"
+    );
+
+    if (!confirmLeave) {
+      window.history.pushState(null, "", window.location.href);
+    }
+  };
+
+  window.addEventListener("popstate", handlePopState);
+
+  return () => {
+    window.removeEventListener("popstate", handlePopState);
+  };
+}, []);
 
   const loadDropdownData = async () => {
     try {

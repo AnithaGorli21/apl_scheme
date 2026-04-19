@@ -13,6 +13,7 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [selectAllChecked, setSelectAllChecked] = useState(false);
 
+  console.log('BeneficiaryTableDFSO - Rendered with beneficiaries:', beneficiaries);
   // Modal states
   const [showLoadingModal, setShowLoadingModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -320,14 +321,14 @@ const BeneficiaryTableDFSO = ({ beneficiaries, searchParams, userRole }) => {
               <th className="px-4 py-3 text-left font-semibold text-white">Member Name</th>
               <th className="px-4 py-3 text-left font-semibold text-white">Member ID</th>
               <th className="px-4 py-3 text-left font-semibold text-white">Gender</th>
-              <th className="px-4 py-3 text-left font-semibold text-white">Relationship</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Relationship with HOF</th>
               <th className="px-4 py-3 text-left font-semibold text-white">Date of Birth</th>
               <th className="px-4 py-3 text-left font-semibold text-white">Age</th>
               <th className="px-4 py-3 text-left font-semibold text-white">Aadhaar No.</th>
-              <th className="px-4 py-3 text-left font-semibold text-white">Demo Auth</th>
-              <th className="px-4 py-3 text-left font-semibold text-white">EKYC</th>
-              <th className="px-4 py-3 text-left font-semibold text-white">Bank Account</th>
-              <th className="px-4 py-3 text-left font-semibold text-white">Select for Disbursement</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Demographic Authentication Completed</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">EKYC Status</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Aadhaar Linked Bank account available?</th>
+              <th className="px-4 py-3 text-left font-semibold text-white">Selected Account for Disbursement?</th>
               <th className="px-4 py-3 text-left font-semibold text-white">Total Benefit Amount</th>
               <th className="px-4 py-3 text-left font-semibold text-white">
                 <div className="flex items-center gap-2">

@@ -64,7 +64,7 @@ async function aplWipRoutes(fastify, options) {
           required: ['dist_code','dfso_code', 'afso_code', 
                      'fps_code', 'fps_name', 'rc_no', 'hof_name', 'member_id'],
           properties: {
-            dist_code: { type: 'integer' },
+          dist_code: { type: 'integer' },
           dfso_code: { type: 'integer' },
           afso_code: { type: 'integer' },
           fps_code: { type: 'integer' },

@@ -131,13 +131,17 @@ class APLWipService {
             dist_code, dfso_code, afso_code,
             fps_code, fps_name, rc_no, hof_name, member_id,
             wf_status,
-            created_by, is_active
-            --total_benefit_amount,
-            -- is_disbursement_account, 
+            created_by, is_active,
+            amount,
+            is_disbursement_account,
+            fy,
+            mm,
+            member_count,
+            is_aadhaar_linked_account 
 
           ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
-            --, $12, $13, $14,
+            , $12, $13, $14, $15, $16, $17
           )
           RETURNING *
         `;
@@ -151,11 +155,15 @@ class APLWipService {
           wipData.rc_no,
           wipData.hof_name,
           wipData.member_id,
-          wipData.status || 'PENDING',
+          wipData.wf_status || 'PENDING',
           userId,
-          true
-          //wipData.total_benefit_amount || 0,
-          //wipData.is_disbursement_account || true,
+          true,
+          wipData.amount || 0,
+          wipData.is_disbursement_account || false,
+          wipData.fy || null,
+          wipData.mm || null,
+          wipData.member_count || 0,
+          wipData.is_aadhaar_linked_account || false
         ];
 
         const result = await client.query(query, params);

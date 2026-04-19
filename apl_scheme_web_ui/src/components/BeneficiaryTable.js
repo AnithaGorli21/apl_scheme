@@ -218,6 +218,7 @@ const BeneficiaryTable = ({
       const selectedMemberId = selectedDisbursements[rcNo]?.memberId;
       const selectedMember = family?.members.find(m => m.member_id === selectedMemberId);
 
+      console.log('Building payload for RC:', rcNo, 'Selected Member ID:', selectedMemberId, selectedMember);
       if (family && selectedMember) {
         const totalBenefitAmount = calculateBenefitAmount(family.members);
 
@@ -230,7 +231,8 @@ const BeneficiaryTable = ({
           afso_code: family.afso_code,
           fps_code: family.fps_code,
           fps_name: family.fps_name || "string",
-          total_benefit_amount: totalBenefitAmount,
+          amount: totalBenefitAmount,
+          member_count: family?.members.length,
           is_aadhaar_linked_account: selectedMember.is_aadhaar_linked_account,
           is_disbursement_account: true,
           wf_status: "SCRUTINY_PENDING"
