@@ -368,6 +368,173 @@ class APLWipService {
       throw error;
     }
   }
+
+  /**
+   * Get Old Scrutiny Records - Latest distinct APPROVED records matching with t_apl_data
+   * Irrespective of fy and mm filters (they are informational only)
+   */
+  async getOldScrutinyRecords(queryParams) {
+    try {
+      const {
+        page = 1,
+        limit = 10,
+        fpsCode,
+        afsoCode,
+        dfsoCode,
+        status = 'APPROVED',
+        latestOnly = true,
+        sortBy = 'rc_no',
+        sortOrder = 'DESC'
+      } = queryParams;
+
+      // Build WHERE conditions for filters (excluding fy and mm as per spec)
+      const conditions = ['wip.wf_status = $1']; // Status fixed to APPROVED
+      const params = [status];
+      let paramIndex = 2;
+
+      // Add DFSO filter
+      if (dfsoCode) {
+        conditions.push(`wip.dfso_code = $${paramIndex}`);
+        params.push(dfsoCode);
+        paramIndex++;
+      }
+
+      // Add AFSO filter
+      if (afsoCode) {
+        conditions.push(`wip.afso_code = $${paramIndex}`);
+        params.push(afsoCode);
+        paramIndex++;
+      }
+
+      // Add FPS filter
+      if (fpsCode) {
+        conditions.push(`wip.fps_code = $${paramIndex}`);
+        params.push(fpsCode);
+        paramIndex++;
+      }
+
+      const whereClause = conditions.join(' AND ');
+
+      // Query logic: Get latest APPROVED records that match with t_apl_data
+      // Using DISTINCT ON for latest records per rc_no
+      const baseQuery = latestOnly ? `
+        WITH latest_approved AS (
+          SELECT DISTINCT ON (wip.rc_no) wip.*
+          FROM ${tables.APL_WIP} wip
+          WHERE ${whereClause}
+          ORDER BY wip.rc_no, wip.created_at DESC
+        )
+        SELECT la.* 
+        FROM latest_approved la
+        WHERE EXISTS (
+          SELECT 1 FROM ${tables.APL_DATA} data
+          WHERE data.rc_no = la.rc_no
+        )
+      ` : `
+        SELECT wip.* 
+        FROM ${tables.APL_WIP} wip
+        WHERE ${whereClause}
+          AND EXISTS (
+            SELECT 1 FROM ${tables.APL_DATA} data
+            WHERE data.rc_no = wip.rc_no
+          )
+      `;
+
+      // Get total count
+      const countQuery = latestOnly ? `
+        WITH latest_approved AS (
+          SELECT DISTINCT ON (wip.rc_no) wip.rc_no
+          FROM ${tables.APL_WIP} wip
+          WHERE ${whereClause}
+          ORDER BY wip.rc_no, wip.created_at DESC
+        )
+        SELECT COUNT(*) 
+        FROM latest_approved la
+        WHERE EXISTS (
+          SELECT 1 FROM ${tables.APL_DATA} data
+          WHERE data.rc_no = la.rc_no
+        )
+      ` : `
+        SELECT COUNT(*) 
+        FROM ${tables.APL_WIP} wip
+        WHERE ${whereClause}
+          AND EXISTS (
+            SELECT 1 FROM ${tables.APL_DATA} data
+            WHERE data.rc_no = wip.rc_no
+          )
+      `;
+
+      const countResult = await db.query(countQuery, params);
+      const totalCount = parseInt(countResult.rows[0].count);
+
+      // Build pagination
+      const pagination = buildPagination(page, limit, totalCount);
+
+      // Get data with ordering and pagination
+      const orderByClause = buildOrderBy(sortBy, sortOrder);
+      const dataQuery = `
+        ${baseQuery}
+        ${orderByClause}
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      `;
+
+      const dataParams = [...params, pagination.query.limit, pagination.query.offset];
+      const result = await db.query(dataQuery, dataParams);
+
+      return {
+        data: result.rows,
+        pagination: pagination.metadata
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Bulk update WIP status (for DFSO approve/reject operations)
+   */
+  async bulkUpdateStatus(rcNumbers, status, remarks = null, userId = 1) {
+    const client = await db.pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const updatedRecords = [];
+
+      // Update all records for the given RC numbers
+      for (const rcNo of rcNumbers) {
+        const query = `
+          UPDATE ${tables.APL_WIP}
+          SET wf_status = $1,
+              approved_by = $2,
+              approved_at = CURRENT_TIMESTAMP,
+              modified_by = $2,
+              modified_at = CURRENT_TIMESTAMP,
+              remarks = $3
+          WHERE rc_no = $4
+            AND wf_status = 'SCRUTINY_PENDING'
+          RETURNING *
+        `;
+
+        const params = [status, userId, remarks, rcNo];
+        const result = await client.query(query, params);
+        updatedRecords.push(...result.rows);
+      }
+
+      await client.query('COMMIT');
+
+      return {
+        success: true,
+        count: updatedRecords.length,
+        data: updatedRecords
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 module.exports = new APLWipService();

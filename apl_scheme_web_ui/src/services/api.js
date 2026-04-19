@@ -39,7 +39,7 @@ const calculateAge = (dob) => {
 const determineBankAccount = (record) => {
   // Assume HOF has bank account if ekyc is completed
   if (record.relation_name === 'HOF' || record.relation_name === 'SELF') {
-    return record.ekyc === 'Y' ? 'Yes' : 'No';
+    return record.is_aadhaar_linked_account ? 'Yes' : 'No';
   }
   return 'No';
 };
@@ -80,6 +80,7 @@ const transformToFamilyStructure = (apiData) => {
       demo_auth: record.demo_auth,
       ekyc: record.ekyc,
       bank_account: determineBankAccount(record),
+      is_aadhaar_linked_account: record.is_aadhaar_linked_account,
       is_hof: record.relation_name === 'SELF' || record.relation_name === 'HOF',
       dist_code: record.dist_code,
       dfso_code: record.dfso_code,
@@ -285,7 +286,8 @@ export const apiService = {
     }
   },
 
-  // Get beneficiaries - Real API or Mock data based on environment
+  // Get beneficiaries for New Scrutiny (Tab 1)
+  // Excludes records already submitted for the selected month/year
   getBeneficiaries: async (params) => {
     const useMockData = process.env.REACT_APP_USE_MOCK_DATA === 'true';
     
@@ -293,24 +295,34 @@ export const apiService = {
       console.log('Using mock data (REACT_APP_USE_MOCK_DATA=true)');
       return getMockBeneficiaries(params);
     }
-    console.log('Fetching beneficiaries with params:', params);
-      // 'http://localhost:3000/api/v1/apl-data/?page=1&limit=10&fpsCode=150005800001&sortBy=rc_no&sortOrder=DESC' \
+    console.log('Fetching beneficiaries (New Scrutiny) with params:', params);
 
     // Fetch from real API
     try {
       console.log('Fetching from API (REACT_APP_USE_MOCK_DATA=false)');
+      
+      // Extract month number from month name
+      const monthMap = {
+        'January': 1, 'February': 2, 'March': 3, 'April': 4,
+        'May': 5, 'June': 6, 'July': 7, 'August': 8,
+        'September': 9, 'October': 10, 'November': 11, 'December': 12
+      };
+      const mm = monthMap[params.month] || parseInt(params.month);
+      
       const response = await api.get('/apl-data/', {
         params: {
           page: 1,
-          limit: 100,
+          limit: 1000,
           sortBy: 'rc_no',
           sortOrder: 'DESC',
-          // isActive: true,
           fpsCode: params.fpsCode,
+          fy: params.financialYear,  // e.g., '2026-27'
+          mm: mm,                     // Month number 1-12
+          excludeSubmitted: true      // Exclude already submitted records
         }
       });
 
-      console.log('API Response:', response.data);
+      console.log('API Response (New Scrutiny):', response.data);
       
       // Transform API response to family structure
       const families = transformToFamilyStructure(response.data.data);
@@ -349,19 +361,31 @@ export const apiService = {
     }
   },
 
-  // Get Old Scrutiny Records (WIP data for AFSO - existing scrutiny records)
+  // Get Old Scrutiny Records (Tab 2 - Latest APPROVED records)
+  // Gets latest distinct APPROVED records where all family records match with t_apl_data
   getOldScrutinyRecords: async (params) => {
     try {
-      console.log('Fetching Old Scrutiny Records from WIP for AFSO');
-      const response = await api.get('/apl-wip/', {
+      console.log('Fetching Old Scrutiny Records (latest APPROVED) with params:', params);
+      
+      // Extract month number from month name
+      const monthMap = {
+        'January': 1, 'February': 2, 'March': 3, 'April': 4,
+        'May': 5, 'June': 6, 'July': 7, 'August': 8,
+        'September': 9, 'October': 10, 'November': 11, 'December': 12
+      };
+      const mm = monthMap[params.month] || parseInt(params.month);
+      
+      const response = await api.get('/apl-wip/old-scrutiny', {
         params: {
           page: 1,
-          limit: 100,
+          limit: 1000,
           sortBy: 'rc_no',
           sortOrder: 'DESC',
-          isActive: true,
           fpsCode: params.fpsCode,
-          // Can add more filters if needed
+          fy: params.financialYear,  // e.g., '2026-27'
+          mm: mm,                     // Month number 1-12
+          status: 'APPROVED',         // Only APPROVED records
+          latestOnly: true            // Latest distinct records
         }
       });
 
@@ -378,9 +402,25 @@ export const apiService = {
     }
   },
 
-  // Save WIP data (bulk insert)
-  saveWIPData: async (payload) => {
-    const response = await api.post('/apl-wip/bulk', payload);
+  // Save WIP data (bulk insert) with fy and mm
+  saveWIPData: async (payload, searchParams) => {
+    // Extract month number from month name
+    const monthMap = {
+      'January': 1, 'February': 2, 'March': 3, 'April': 4,
+      'May': 5, 'June': 6, 'July': 7, 'August': 8,
+      'September': 9, 'October': 10, 'November': 11, 'December': 12
+    };
+    const mm = monthMap[searchParams?.month] || parseInt(searchParams?.month);
+    
+    // Add fy and mm to each record in payload
+    const enrichedPayload = payload.map(record => ({
+      ...record,
+      fy: searchParams?.financialYear,  // e.g., '2026-27'
+      mm: mm                             // Month number 1-12
+    }));
+    
+    console.log('Saving WIP data with fy and mm:', { fy: searchParams?.financialYear, mm });
+    const response = await api.post('/apl-wip/bulk', enrichedPayload);
     return response.data;
   },
 

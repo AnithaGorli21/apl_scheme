@@ -19,7 +19,10 @@ class APLDataService {
         rcNo,
         distCode,
         sortBy = 'rc_no', 
-        sortOrder = 'DESC' 
+        sortOrder = 'DESC',
+        fy,
+        mm,
+        excludeSubmitted = false
       } = queryParams;
 
       // Build WHERE conditions
@@ -88,23 +91,82 @@ class APLDataService {
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-      // Get total count
-      const countQuery = `SELECT COUNT(*) FROM ${tables.APL_DATA} ${whereClause}`;
+      // Build query with or without excludeSubmitted logic
+      let baseQuery;
+      let countQuery;
+      let dataQuery;
+
+      if (excludeSubmitted && fy && mm) {
+        // Use CTE to exclude families already submitted for this fy and mm
+        baseQuery = `
+          WITH family_member_counts AS (
+            SELECT 
+              *,
+              COUNT(*) OVER (PARTITION BY rc_no) as member_count
+            FROM ${tables.APL_DATA}
+            ${whereClause}
+          )
+          SELECT * FROM family_member_counts fmc
+          WHERE NOT EXISTS (
+            SELECT 1 FROM ${tables.APL_WIP} scrutiny
+            WHERE scrutiny.rc_no = fmc.rc_no
+              AND scrutiny.fy = $${paramIndex}
+              AND scrutiny.mm = $${paramIndex + 1}
+              AND scrutiny.member_count = fmc.member_count
+          )
+        `;
+        
+        params.push(fy);
+        params.push(mm);
+        paramIndex += 2;
+
+        // Get total count with exclusion
+        countQuery = `
+          WITH family_member_counts AS (
+            SELECT 
+              rc_no,
+              COUNT(*) OVER (PARTITION BY rc_no) as member_count
+            FROM ${tables.APL_DATA}
+            ${whereClause}
+          )
+          SELECT COUNT(DISTINCT rc_no) as count FROM family_member_counts fmc
+          WHERE NOT EXISTS (
+            SELECT 1 FROM ${tables.APL_WIP} scrutiny
+            WHERE scrutiny.rc_no = fmc.rc_no
+              AND scrutiny.fy = $${paramIndex - 2}
+              AND scrutiny.mm = $${paramIndex - 1}
+              AND scrutiny.member_count = fmc.member_count
+          )
+        `;
+
+        // Get data with exclusion
+        const orderByClause = buildOrderBy(sortBy, sortOrder);
+        dataQuery = `
+          ${baseQuery}
+          ${orderByClause}
+          LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+        `;
+      } else {
+        // Standard query without exclusion
+        countQuery = `SELECT COUNT(*) FROM ${tables.APL_DATA} ${whereClause}`;
+        
+        const orderByClause = buildOrderBy(sortBy, sortOrder);
+        dataQuery = `
+          SELECT * FROM ${tables.APL_DATA}
+          ${whereClause}
+          ${orderByClause}
+          LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+        `;
+      }
+
+      // Execute count query
       const countResult = await db.query(countQuery, params);
       const totalCount = parseInt(countResult.rows[0].count);
 
       // Build pagination
       const pagination = buildPagination(page, limit, totalCount);
 
-      // Get data
-      const orderByClause = buildOrderBy(sortBy, sortOrder);
-      const dataQuery = `
-        SELECT * FROM ${tables.APL_DATA}
-        ${whereClause}
-        ${orderByClause}
-        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-      `;
-      
+      // Execute data query
       const dataParams = [...params, pagination.query.limit, pagination.query.offset];
       const result = await db.query(dataQuery, dataParams);
 

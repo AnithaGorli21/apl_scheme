@@ -246,6 +246,85 @@ async function aplWipRoutes(fastify, options) {
       return reply.status(500).send(databaseErrorResponse(error));
     }
   });
+
+  // Get Old Scrutiny Records - Latest APPROVED records matching with t_apl_data
+  fastify.get('/old-scrutiny', {
+    schema: {
+      description: 'Get latest distinct APPROVED records where all family records match with t_apl_data (irrespective of month and year filters)',
+      tags: ['APL WIP'],
+      querystring: {
+        type: 'object',
+        properties: {
+          page: { type: 'integer', minimum: 1, default: 1 },
+          limit: { type: 'integer', minimum: 1, maximum: 1000, default: 10 },
+          fpsCode: { type: 'integer' },
+          afsoCode: { type: 'integer' },
+          dfsoCode: { type: 'integer' },
+          fy: { type: 'string', description: 'Financial Year (e.g., 2023-24) - informational only' },
+          mm: { type: 'integer', minimum: 1, maximum: 12, description: 'Month number (1-12) - informational only' },
+          status: { type: 'string', enum: ['APPROVED'], default: 'APPROVED', description: 'Fixed to APPROVED for old scrutiny' },
+          latestOnly: { type: 'boolean', default: true, description: 'Get latest distinct records only' },
+          sortBy: { type: 'string', default: 'rc_no' },
+          sortOrder: { type: 'string', enum: ['ASC', 'DESC'], default: 'DESC' }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const result = await aplWipService.getOldScrutinyRecords(request.query);
+      return reply.send(successResponse(result.data, 'Old scrutiny records retrieved successfully', result.pagination));
+    } catch (error) {
+      return reply.status(500).send(databaseErrorResponse(error));
+    }
+  });
+
+  // Bulk update WIP status (for DFSO approve/reject)
+  fastify.put('/bulk-update-status', {
+    schema: {
+      description: 'Bulk update WIP record status (APPROVE or REJECT)',
+      tags: ['APL WIP'],
+      body: {
+        type: 'object',
+        required: ['rc_numbers', 'status'],
+        properties: {
+          rc_numbers: { 
+            type: 'array', 
+            items: { type: 'integer' },
+            description: 'Array of RC numbers to update'
+          },
+          status: { 
+            type: 'string', 
+            enum: ['APPROVED', 'REJECTED'],
+            description: 'New status for the records'
+          },
+          remarks: { 
+            type: 'string',
+            description: 'Optional remarks (required for REJECTED status)'
+          }
+        }
+      }
+    }
+  }, async (request, reply) => {
+    try {
+      const { rc_numbers, status, remarks } = request.body;
+      
+      // Validate remarks for REJECTED status
+      if (status === 'REJECTED' && !remarks) {
+        return reply.status(400).send(validationErrorResponse('Remarks are required when rejecting records'));
+      }
+      
+      const userId = request.headers['x-user-id'] || 1;
+      const result = await aplWipService.bulkUpdateStatus(rc_numbers, status, remarks, userId);
+      
+      return reply.send(successResponse(
+        result.data,
+        `Successfully updated ${result.count} record(s) to ${status}`,
+        { count: result.count }
+      ));
+    } catch (error) {
+      return reply.status(500).send(databaseErrorResponse(error));
+    }
+  });
 }
 
 module.exports = aplWipRoutes;

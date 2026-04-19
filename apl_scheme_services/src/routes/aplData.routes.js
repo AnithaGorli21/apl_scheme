@@ -5,13 +5,13 @@ async function aplDataRoutes(fastify, options) {
   // Get all APL Data with pagination and filters
   fastify.get('/', {
     schema: {
-      description: 'Get all APL Data records with pagination, search, and filters',
+      description: 'Get all APL Data records with pagination, search, and filters. Supports excluding already submitted records for a specific financial year and month.',
       tags: ['APL Data'],
       querystring: {
         type: 'object',
         properties: {
           page: { type: 'integer', minimum: 1, default: 1 },
-          limit: { type: 'integer', minimum: 1, maximum: 100, default: 10 },
+          limit: { type: 'integer', minimum: 1, maximum: 1000, default: 10 },
           search: { type: 'string' },
           isActive: { type: 'boolean' },
           dfsoCode: { type: 'integer' },
@@ -20,7 +20,10 @@ async function aplDataRoutes(fastify, options) {
           rcNo: { type: 'integer' },
           distCode: { type: 'integer' },
           sortBy: { type: 'string', default: 'rc_no' },
-          sortOrder: { type: 'string', enum: ['ASC', 'DESC'], default: 'DESC' }
+          sortOrder: { type: 'string', enum: ['ASC', 'DESC'], default: 'DESC' },
+          fy: { type: 'string', description: 'Financial Year (e.g., 2026-27)' },
+          mm: { type: 'integer', minimum: 1, maximum: 12, description: 'Month number (1-12)' },
+          excludeSubmitted: { type: 'boolean', description: 'Exclude families already submitted for the selected fy and mm' }
         }
       }
     }

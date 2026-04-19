@@ -180,7 +180,7 @@ const SchemeSearch = () => {
     setShowLoadingModal(true);
 
     try {
-      const response = await apiService.saveWIPData(combinedPayload);
+      const response = await apiService.saveWIPData(combinedPayload, formData);
       console.log('Save response:', response);
       
       // Hide loading modal

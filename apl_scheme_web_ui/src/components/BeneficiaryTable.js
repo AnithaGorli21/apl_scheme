@@ -150,7 +150,7 @@ const BeneficiaryTable = ({
       const hofMember = family.members.find(m => m.is_hof);
       
       // Auto-select if HOF has bank account
-      if (hofMember && hofMember.bank_account === 'Yes') {
+      if (hofMember && hofMember.is_aadhaar_linked_account === true) {
         autoSelections[family.rc_no] = {
           memberId: hofMember.member_id,
           locked: true
@@ -231,6 +231,7 @@ const BeneficiaryTable = ({
           fps_code: family.fps_code,
           fps_name: family.fps_name || "string",
           total_benefit_amount: totalBenefitAmount,
+          is_aadhaar_linked_account: selectedMember.is_aadhaar_linked_account,
           is_disbursement_account: true,
           wf_status: "SCRUTINY_PENDING"
         });
